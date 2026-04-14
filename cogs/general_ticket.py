@@ -4,14 +4,14 @@ from discord import app_commands
 import json
 import os
 
-# 🔧 CONFIG
+# 🔧 CONFIG (UPDATED)
 CATEGORY_ID = 1493574775992225832
 STAFF_ROLE = 1493559145876557955
 
 COUNTER_FILE = "ticket_counter.json"
 
 
-# ================= COUNTER SYSTEM =================
+# ================= COUNTER =================
 
 def get_ticket_number():
     if not os.path.exists(COUNTER_FILE):
@@ -26,7 +26,7 @@ def get_ticket_number():
     with open(COUNTER_FILE, "w") as f:
         json.dump(data, f)
 
-    return f"{data['count']:03}"  # 001, 002
+    return f"{data['count']:03}"
 
 
 # ================= BUTTONS =================
@@ -45,9 +45,9 @@ class TicketButtons(discord.ui.View):
         embed = interaction.message.embeds[0]
 
         embed.description = (
-            f"🛠️ Our staff members will contact you shortly\n\n"
-            f"👤 Opened by: {self.author.mention}\n"
-            f"👨‍✈️ Claimed by: {interaction.user.mention}"
+            f"🛠️ Our staff members will contact you shortly.\n\n"
+            f"👤 **Opened by:** {self.author.mention}\n"
+            f"👨‍✈️ **Claimed by:** {interaction.user.mention}"
         )
 
         await interaction.message.edit(embed=embed, view=self)
@@ -60,7 +60,7 @@ class TicketButtons(discord.ui.View):
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
-        # 🔒 Lock channel (only staff)
+        # 🔒 Lock channel
         await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
 
         await interaction.response.send_message(
@@ -89,7 +89,7 @@ class CloseView(discord.ui.View):
         await interaction.channel.delete()
 
 
-# ================= PANEL BUTTON =================
+# ================= PANEL =================
 
 class PanelView(discord.ui.View):
     def __init__(self):
@@ -102,9 +102,7 @@ class PanelView(discord.ui.View):
         category = guild.get_channel(CATEGORY_ID)
         user = interaction.user
 
-        # 🔢 Ticket number
         ticket_number = get_ticket_number()
-
         channel_name = f"ticket-{ticket_number}"
 
         overwrites = {
@@ -119,17 +117,23 @@ class PanelView(discord.ui.View):
             overwrites=overwrites
         )
 
+        # 🎨 TICKET EMBED (UPDATED)
         embed = discord.Embed(
-            title=f"🎫 General Support | Ticket #{ticket_number}",
+            title="🎫 Support Ticket",
             description=(
-                f"🛠️ Our staff members will contact you shortly\n\n"
-                f"👤 Opened by: {user.mention}\n"
-                f"👨‍✈️ Claimed by: Not yet"
+                f"🛠️ Our staff members will contact you shortly.\n\n"
+                f"👤 **Opened by:** {user.mention}\n"
+                f"👨‍✈️ **Claimed by:** Not yet"
             ),
             color=discord.Color.orange()
         )
 
-        await channel.send(embed=embed, view=TicketButtons(user))
+        # 🔔 ROLE PING OUTSIDE EMBED (LIKE YOUR IMAGE)
+        await channel.send(
+            content=f"<@&{STAFF_ROLE}>",
+            embed=embed,
+            view=TicketButtons(user)
+        )
 
         await interaction.response.send_message(
             f"✅ Ticket created: {channel.mention}",
@@ -143,7 +147,7 @@ class GeneralTicket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        # 🔥 Persistent views (24x7 support)
+        # 🔥 Persistent views (24×7)
         self.bot.add_view(PanelView())
         self.bot.add_view(TicketButtons(None))
         self.bot.add_view(CloseView())
@@ -154,9 +158,17 @@ class GeneralTicket(commands.Cog):
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
+        # 🎨 PANEL EMBED (UPDATED)
         embed = discord.Embed(
-            title="🎫 General Support",
-            description="Click the button below to open a ticket.",
+            title="🎫 Support Center",
+            description=(
+                "**Need help? Open a support ticket below!**\n\n"
+                "📌 Click the button to create a private ticket.\n"
+                "👨‍✈️ Our staff team will assist you shortly.\n\n"
+                "✦ Fast support\n"
+                "✦ Professional assistance\n"
+                "✦ 24×7 availability"
+            ),
             color=discord.Color.orange()
         )
 
