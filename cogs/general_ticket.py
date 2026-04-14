@@ -4,7 +4,7 @@ from discord import app_commands
 import json
 import os
 
-# 🔧 CONFIG (UPDATED)
+# 🔧 CONFIG
 CATEGORY_ID = 1493574775992225832
 STAFF_ROLE = 1493559145876557955
 
@@ -45,9 +45,10 @@ class TicketButtons(discord.ui.View):
         embed = interaction.message.embeds[0]
 
         embed.description = (
-            f"🛠️ Our staff members will contact you shortly.\n\n"
-            f"👤 **Opened by:** {self.author.mention}\n"
-            f"👨‍✈️ **Claimed by:** {interaction.user.mention}"
+            f"{self.author.mention} please describe your issue.\n"
+            f"Our staff team will assist you shortly.\n\n"
+            f"👤 Opened by: {self.author.mention}\n"
+            f"👨‍✈️ Claimed by: {interaction.user.mention}"
         )
 
         await interaction.message.edit(embed=embed, view=self)
@@ -60,7 +61,6 @@ class TicketButtons(discord.ui.View):
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
-        # 🔒 Lock channel
         await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
 
         await interaction.response.send_message(
@@ -79,7 +79,6 @@ class CloseView(discord.ui.View):
     async def reopen(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=True)
-
         await interaction.response.send_message("🔓 Ticket reopened.")
 
     @discord.ui.button(label=" Delete", emoji="🗑️", style=discord.ButtonStyle.secondary, custom_id="delete_btn")
@@ -117,20 +116,21 @@ class PanelView(discord.ui.View):
             overwrites=overwrites
         )
 
-        # 🎨 TICKET EMBED (UPDATED)
+        # 📝 OLD STYLE EMBED + SMALL UPGRADE
         embed = discord.Embed(
             title="🎫 Support Ticket",
             description=(
-                f"🛠️ Our staff members will contact you shortly.\n\n"
-                f"👤 **Opened by:** {user.mention}\n"
-                f"👨‍✈️ **Claimed by:** Not yet"
+                f"{user.mention} please describe your issue.\n"
+                f"Our staff team will assist you shortly.\n\n"
+                f"⏱️ Please be patient while we review your request.\n\n"
+                f"👤 Opened by: {user.mention}\n"
+                f"👨‍✈️ Claimed by: Not yet"
             ),
             color=discord.Color.orange()
         )
 
-        # 🔔 ROLE PING OUTSIDE EMBED (LIKE YOUR IMAGE)
         await channel.send(
-            content=f"<@&{STAFF_ROLE}>",
+            content=f"<@&{STAFF_ROLE}>",  # 🔔 role ping outside embed
             embed=embed,
             view=TicketButtons(user)
         )
@@ -147,7 +147,7 @@ class GeneralTicket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        # 🔥 Persistent views (24×7)
+        # 🔁 persistent views
         self.bot.add_view(PanelView())
         self.bot.add_view(TicketButtons(None))
         self.bot.add_view(CloseView())
@@ -155,19 +155,16 @@ class GeneralTicket(commands.Cog):
     @app_commands.command(name="generalpanel", description="Send General Support panel")
     async def generalpanel(self, interaction: discord.Interaction, channel: discord.TextChannel):
 
+        # 🔐 ONLY STAFF ROLE
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
-        # 🎨 PANEL EMBED (UPDATED)
         embed = discord.Embed(
-            title="🎫 Support Center",
+            title="🎫 General Support",
             description=(
-                "**Need help? Open a support ticket below!**\n\n"
+                "Need help? Open a support ticket below.\n\n"
                 "📌 Click the button to create a private ticket.\n"
-                "👨‍✈️ Our staff team will assist you shortly.\n\n"
-                "✦ Fast support\n"
-                "✦ Professional assistance\n"
-                "✦ 24×7 availability"
+                "👨‍✈️ Our staff team will assist you shortly."
             ),
             color=discord.Color.orange()
         )
