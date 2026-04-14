@@ -163,7 +163,7 @@ class RecruitmentTicket(commands.Cog):
                 "📌 Click the button below to open a recruitment ticket.\n"
                 "👨‍✈️ Our recruitment team will assist you."
             ),
-            color=discord.Color.orange()
+            color=discord.Color.red()
         )
 
         await channel.send(embed=embed, view=RecruitPanel())
