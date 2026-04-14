@@ -10,9 +10,14 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+
+    # Load cog
+    await bot.load_extension("cogs.status")
+
+    # 🔥 Sync slash commands
     try:
-        await bot.load_extension("cogs.status")
-        print("Status cog loaded")
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands")
     except Exception as e:
         print(e)
 
