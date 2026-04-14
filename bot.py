@@ -2,6 +2,9 @@ import discord
 from discord.ext import commands
 import os
 
+# 🔧 CONFIG
+GUILD_ID = 1493552564799672320
+
 # 🔥 Intents
 intents = discord.Intents.default()
 intents.message_content = True
@@ -10,7 +13,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-# ✅ LOAD COGS + SYNC (BEST METHOD)
+# 🚀 LOAD COGS + SYNC COMMANDS
 @bot.event
 async def setup_hook():
     print("⚙️ Loading cogs...")
@@ -23,12 +26,10 @@ async def setup_hook():
             except Exception as e:
                 print(f"❌ Failed to load {file}: {e}")
 
-    # 🔥 Sync slash commands
-    try:
-        synced = await bot.tree.sync()
-        print(f"🌐 Synced {len(synced)} slash command(s)")
-    except Exception as e:
-        print(f"❌ Sync error: {e}")
+    # ⚡ Instant sync to your server
+    guild = discord.Object(id=GUILD_ID)
+    synced = await bot.tree.sync(guild=guild)
+    print(f"⚡ Synced {len(synced)} command(s)")
 
 
 @bot.event
@@ -36,15 +37,10 @@ async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
 
-@bot.event
-async def on_connect():
-    print("🔄 Bot connected...")
-
-
-# ▶️ Run bot
+# ▶️ RUN BOT
 TOKEN = os.getenv("TOKEN")
 
 if not TOKEN:
-    print("❌ TOKEN not found! Add it in Railway variables.")
+    print("❌ TOKEN not found!")
 else:
     bot.run(TOKEN)
