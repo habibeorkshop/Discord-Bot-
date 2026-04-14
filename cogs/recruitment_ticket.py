@@ -8,7 +8,7 @@ import os
 CATEGORY_ID = 1493574775992225832
 STAFF_ROLE = 1493559145876557955
 RECRUIT_ROLE = 1493574929877172455
-GUILD_ID = 1493552564799672320  # ✅ ADD THIS
+GUILD_ID = 1493552564799672320
 
 COUNTER_FILE = "ticket_counter.json"
 
@@ -34,7 +34,7 @@ def get_ticket_number():
 # ================= BUTTONS =================
 
 class RecruitButtons(discord.ui.View):
-    def __init__(self, author):
+    def __init__(self, author: discord.Member):
         super().__init__(timeout=None)
         self.author = author
 
@@ -44,12 +44,13 @@ class RecruitButtons(discord.ui.View):
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
-        embed = interaction.message.embeds[0]
+        author_mention = self.author.mention if self.author else "Unknown User"
 
+        embed = interaction.message.embeds[0]
         embed.description = (
-            f"{self.author.mention} please provide your recruitment details.\n"
+            f"{author_mention} please provide your recruitment details.\n"
             f"Our recruitment team will assist you shortly.\n\n"
-            f"👤 Opened by: {self.author.mention}\n"
+            f"👤 Opened by: {author_mention}\n"
             f"👨‍✈️ Claimed by: {interaction.user.mention}"
         )
 
@@ -62,7 +63,10 @@ class RecruitButtons(discord.ui.View):
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
-        await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
+        await interaction.channel.set_permissions(
+            interaction.guild.default_role,
+            send_messages=False
+        )
 
         await interaction.response.send_message(
             "🔒 Ticket closed.",
@@ -78,7 +82,10 @@ class RecruitCloseView(discord.ui.View):
 
     @discord.ui.button(label=" Reopen", emoji="🔓", style=discord.ButtonStyle.secondary)
     async def reopen(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=True)
+        await interaction.channel.set_permissions(
+            interaction.guild.default_role,
+            send_messages=True
+        )
         await interaction.response.send_message("🔓 Ticket reopened.")
 
     @discord.ui.button(label=" Delete", emoji="🗑️", style=discord.ButtonStyle.secondary)
@@ -97,8 +104,8 @@ class RecruitPanel(discord.ui.View):
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         guild = interaction.guild
-        category = guild.get_channel(CATEGORY_ID)
         user = interaction.user
+        category = guild.get_channel(CATEGORY_ID)
 
         ticket_number = get_ticket_number()
         channel_name = f"ticket-{ticket_number}"
@@ -144,12 +151,12 @@ class RecruitmentTicket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+        # ✅ ONLY SAFE VIEWS
         self.bot.add_view(RecruitPanel())
-        self.bot.add_view(RecruitButtons(None))
         self.bot.add_view(RecruitCloseView())
 
     @app_commands.command(name="recruitpanel", description="Send Recruitment panel")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))  # ✅ THIS FIXES IT
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def recruitpanel(self, interaction: discord.Interaction, channel: discord.TextChannel):
 
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
