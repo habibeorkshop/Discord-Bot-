@@ -8,6 +8,7 @@ import os
 CATEGORY_ID = 1493574775992225832
 STAFF_ROLE = 1493559145876557955
 RECRUIT_ROLE = 1493574929877172455
+GUILD_ID = 1493552564799672320  # ✅ ADD THIS
 
 COUNTER_FILE = "ticket_counter.json"
 
@@ -37,7 +38,7 @@ class RecruitButtons(discord.ui.View):
         super().__init__(timeout=None)
         self.author = author
 
-    @discord.ui.button(label=" Claim", emoji="👨‍✈️", style=discord.ButtonStyle.secondary, custom_id="recruit_claim")
+    @discord.ui.button(label=" Claim", emoji="👨‍✈️", style=discord.ButtonStyle.secondary)
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
@@ -55,7 +56,7 @@ class RecruitButtons(discord.ui.View):
         await interaction.message.edit(embed=embed, view=self)
         await interaction.response.send_message(f"✅ Claimed by {interaction.user.mention}")
 
-    @discord.ui.button(label=" Close", emoji="🔒", style=discord.ButtonStyle.secondary, custom_id="recruit_close")
+    @discord.ui.button(label=" Close", emoji="🔒", style=discord.ButtonStyle.secondary)
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
@@ -64,7 +65,7 @@ class RecruitButtons(discord.ui.View):
         await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
 
         await interaction.response.send_message(
-            "🔒 Ticket closed. Choose an option:",
+            "🔒 Ticket closed.",
             view=RecruitCloseView()
         )
 
@@ -114,13 +115,11 @@ class RecruitPanel(discord.ui.View):
             overwrites=overwrites
         )
 
-        # 🎨 EMBED
         embed = discord.Embed(
             title="🧑‍✈️ Recruitment Ticket",
             description=(
                 f"{user.mention} please provide your recruitment details.\n"
                 f"Our recruitment team will assist you shortly.\n\n"
-                f"⏱️ Please be patient while we review your application.\n\n"
                 f"👤 Opened by: {user.mention}\n"
                 f"👨‍✈️ Claimed by: Not yet"
             ),
@@ -128,7 +127,7 @@ class RecruitPanel(discord.ui.View):
         )
 
         await channel.send(
-            content=f"<@&{RECRUIT_ROLE}>",  # 🔔 recruiter ping
+            content=f"<@&{RECRUIT_ROLE}>",
             embed=embed,
             view=RecruitButtons(user)
         )
@@ -145,12 +144,12 @@ class RecruitmentTicket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        # 🔁 persistent views
         self.bot.add_view(RecruitPanel())
         self.bot.add_view(RecruitButtons(None))
         self.bot.add_view(RecruitCloseView())
 
     @app_commands.command(name="recruitpanel", description="Send Recruitment panel")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))  # ✅ THIS FIXES IT
     async def recruitpanel(self, interaction: discord.Interaction, channel: discord.TextChannel):
 
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
@@ -173,4 +172,3 @@ class RecruitmentTicket(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(RecruitmentTicket(bot))
-      
