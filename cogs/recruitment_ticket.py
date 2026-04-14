@@ -34,11 +34,16 @@ def get_ticket_number():
 # ================= BUTTONS =================
 
 class RecruitButtons(discord.ui.View):
-    def __init__(self, author: discord.Member):
+    def __init__(self, author):
         super().__init__(timeout=None)
         self.author = author
 
-    @discord.ui.button(label=" Claim", emoji="👨‍✈️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=" Claim",
+        emoji="👨‍✈️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="recruit_claim_button"
+    )
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
@@ -57,7 +62,12 @@ class RecruitButtons(discord.ui.View):
         await interaction.message.edit(embed=embed, view=self)
         await interaction.response.send_message(f"✅ Claimed by {interaction.user.mention}")
 
-    @discord.ui.button(label=" Close", emoji="🔒", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=" Close",
+        emoji="🔒",
+        style=discord.ButtonStyle.secondary,
+        custom_id="recruit_close_button"
+    )
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
@@ -80,7 +90,12 @@ class RecruitCloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label=" Reopen", emoji="🔓", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=" Reopen",
+        emoji="🔓",
+        style=discord.ButtonStyle.secondary,
+        custom_id="recruit_reopen_button"
+    )
     async def reopen(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.channel.set_permissions(
             interaction.guild.default_role,
@@ -88,7 +103,12 @@ class RecruitCloseView(discord.ui.View):
         )
         await interaction.response.send_message("🔓 Ticket reopened.")
 
-    @discord.ui.button(label=" Delete", emoji="🗑️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=" Delete",
+        emoji="🗑️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="recruit_delete_button"
+    )
     async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("🗑️ Deleting ticket...")
         await interaction.channel.delete()
@@ -100,7 +120,12 @@ class RecruitPanel(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label=" Open Recruitment Ticket", emoji="🧑‍✈️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=" Open Recruitment Ticket",
+        emoji="🧑‍✈️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="recruit_open_ticket"
+    )
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         guild = interaction.guild
@@ -151,7 +176,7 @@ class RecruitmentTicket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        # ✅ ONLY SAFE VIEWS
+        # ✅ Persistent views (SAFE)
         self.bot.add_view(RecruitPanel())
         self.bot.add_view(RecruitCloseView())
 
