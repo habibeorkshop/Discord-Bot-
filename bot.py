@@ -10,10 +10,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    try:
+        await bot.load_extension("cogs.status")
+        print("Status cog loaded")
+    except Exception as e:
+        print(e)
 
-@bot.command()
-async def ping(ctx):
-    await ctx.send("Pong!")
-
-TOKEN = os.getenv("TOKEN")
-bot.run(TOKEN)
+bot.run(os.getenv("TOKEN"))
