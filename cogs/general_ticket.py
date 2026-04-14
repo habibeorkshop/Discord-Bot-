@@ -6,7 +6,9 @@ import os
 
 # 🔧 CONFIG
 CATEGORY_ID = 1493574775992225832
+
 STAFF_ROLE = 1493559145876557955
+RECRUIT_ROLE = 1493574929877172455
 
 COUNTER_FILE = "ticket_counter.json"
 
@@ -46,7 +48,7 @@ class TicketButtons(discord.ui.View):
 
         embed.description = (
             f"{self.author.mention} please describe your issue.\n"
-            f"Our staff team will assist you shortly.\n\n"
+            f"Our team will assist you shortly.\n\n"
             f"👤 Opened by: {self.author.mention}\n"
             f"👨‍✈️ Claimed by: {interaction.user.mention}"
         )
@@ -75,26 +77,26 @@ class CloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label=" Reopen", emoji="🔓", style=discord.ButtonStyle.secondary, custom_id="reopen_btn")
+    @discord.ui.button(label=" Reopen", emoji="🔓", style=discord.ButtonStyle.secondary)
     async def reopen(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=True)
         await interaction.response.send_message("🔓 Ticket reopened.")
 
-    @discord.ui.button(label=" Delete", emoji="🗑️", style=discord.ButtonStyle.secondary, custom_id="delete_btn")
+    @discord.ui.button(label=" Delete", emoji="🗑️", style=discord.ButtonStyle.secondary)
     async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         await interaction.response.send_message("🗑️ Deleting ticket...")
         await interaction.channel.delete()
 
 
-# ================= PANEL =================
+# ================= PANEL VIEW =================
 
 class PanelView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, role_id, ticket_type):
         super().__init__(timeout=None)
+        self.role_id = role_id
+        self.ticket_type = ticket_type
 
-    @discord.ui.button(label=" Open Ticket", emoji="🎫", style=discord.ButtonStyle.secondary, custom_id="open_ticket")
+    @discord.ui.button(label=" Open Ticket", emoji="🎫", style=discord.ButtonStyle.secondary)
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         guild = interaction.guild
@@ -107,7 +109,7 @@ class PanelView(discord.ui.View):
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-            guild.get_role(STAFF_ROLE): discord.PermissionOverwrite(view_channel=True, send_messages=True)
+            guild.get_role(self.role_id): discord.PermissionOverwrite(view_channel=True, send_messages=True)
         }
 
         channel = await guild.create_text_channel(
@@ -116,12 +118,12 @@ class PanelView(discord.ui.View):
             overwrites=overwrites
         )
 
-        # 📝 OLD STYLE EMBED + SMALL UPGRADE
+        # 🎨 EMBED (dynamic)
         embed = discord.Embed(
-            title="🎫 Support Ticket",
+            title=f"🎫 {self.ticket_type} Ticket",
             description=(
                 f"{user.mention} please describe your issue.\n"
-                f"Our staff team will assist you shortly.\n\n"
+                f"Our team will assist you shortly.\n\n"
                 f"⏱️ Please be patient while we review your request.\n\n"
                 f"👤 Opened by: {user.mention}\n"
                 f"👨‍✈️ Claimed by: Not yet"
@@ -130,7 +132,7 @@ class PanelView(discord.ui.View):
         )
 
         await channel.send(
-            content=f"<@&{STAFF_ROLE}>",  # 🔔 role ping outside embed
+            content=f"<@&{self.role_id}>",
             embed=embed,
             view=TicketButtons(user)
         )
@@ -143,19 +145,20 @@ class PanelView(discord.ui.View):
 
 # ================= COG =================
 
-class GeneralTicket(commands.Cog):
+class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
         # 🔁 persistent views
-        self.bot.add_view(PanelView())
+        self.bot.add_view(PanelView(STAFF_ROLE, "General Support"))
+        self.bot.add_view(PanelView(RECRUIT_ROLE, "Recruitment"))
         self.bot.add_view(TicketButtons(None))
         self.bot.add_view(CloseView())
 
+    # 🎫 GENERAL PANEL
     @app_commands.command(name="generalpanel", description="Send General Support panel")
     async def generalpanel(self, interaction: discord.Interaction, channel: discord.TextChannel):
 
-        # 🔐 ONLY STAFF ROLE
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
             return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
@@ -169,10 +172,24 @@ class GeneralTicket(commands.Cog):
             color=discord.Color.orange()
         )
 
-        await channel.send(embed=embed, view=PanelView())
+        await channel.send(embed=embed, view=PanelView(STAFF_ROLE, "General Support"))
+        await interaction.response.send_message("✅ General panel sent!", ephemeral=True)
 
-        await interaction.response.send_message("✅ Panel sent!", ephemeral=True)
+    # 🧑‍✈️ RECRUITMENT PANEL
+    @app_commands.command(name="recruitpanel", description="Send Recruitment panel")
+    async def recruitpanel(self, interaction: discord.Interaction, channel: discord.TextChannel):
 
+        if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
+            return await interaction.response.send_message("❌ Staff only", ephemeral=True)
 
-async def setup(bot):
-    await bot.add_cog(GeneralTicket(bot))
+        embed = discord.Embed(
+            title="🧑‍✈️ Recruitment Support",
+            description=(
+                "Interested in joining our airline?\n\n"
+                "📌 Click below to open a recruitment ticket.\n"
+                "👨‍✈️ Our recruitment team will assist you."
+            ),
+            color=discord.Color.orange()
+        )
+
+        await channel.send(embed=embed, view=Panel
