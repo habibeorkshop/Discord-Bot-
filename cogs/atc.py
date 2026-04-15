@@ -4,7 +4,6 @@ from discord import app_commands
 import aiohttp
 import os
 
-# 🔧 CONFIG
 IF_API_KEY = os.getenv("IF_API_KEY")
 GUILD_ID = 1493552564799672320
 BASE_URL = "https://api.infiniteflight.com/public/v2"
@@ -25,8 +24,8 @@ class AirportSelect(discord.ui.Select):
         self.server_name = server_name
 
         options = [
-            discord.SelectOption(label=icao, description=f"{len(v)} ATC online")
-            for icao, v in list(airports.items())[:25]
+            discord.SelectOption(label=icao)
+            for icao in list(airports.keys())[:25]
         ]
 
         super().__init__(
@@ -41,16 +40,14 @@ class AirportSelect(discord.ui.Select):
         airport = self.values[0]
         atc_units = self.airports.get(airport, [])
 
-        # 👨‍✈️ Controllers
         controllers = []
         for atc in atc_units:
             name = atc.get("username", "Unknown")
             freq = atc.get("frequency", "N/A")
             controllers.append(f"{name} ({freq})")
 
-        controller_text = "\n".join(controllers) or "None"
+        controller_text = "\n".join(controllers) or "No controllers"
 
-        # 📊 Traffic
         inbound = 0
         outbound = 0
 
@@ -66,15 +63,14 @@ class AirportSelect(discord.ui.Select):
             if f.get("departureAirportIcao") == airport:
                 outbound += 1
 
-        # 📦 Embed
         embed = discord.Embed(
-            title=f"📡 ATC Active — {airport}",
+            title=f"📡 ATC — {airport}",
             color=discord.Color.green()
         )
 
         embed.add_field(name="👨‍✈️ Controllers", value=controller_text[:1000], inline=False)
         embed.add_field(name="📊 Traffic", value=f"🛬 {inbound} | 🛫 {outbound}", inline=False)
-        embed.add_field(name="🌐 Server", value=self.server_name, inline=True)
+        embed.add_field(name="🌐 Server", value=self.server_name)
 
         await interaction.followup.send(embed=embed)
 
@@ -83,15 +79,13 @@ class AirportSelect(discord.ui.Select):
 
 class ServerSelect(discord.ui.Select):
     def __init__(self):
-        options = [
-            discord.SelectOption(label="Casual", emoji="🟢"),
-            discord.SelectOption(label="Training", emoji="🟡"),
-            discord.SelectOption(label="Expert", emoji="🔴")
-        ]
-
         super().__init__(
             placeholder="Select server...",
-            options=options,
+            options=[
+                discord.SelectOption(label="Casual", emoji="🟢"),
+                discord.SelectOption(label="Training", emoji="🟡"),
+                discord.SelectOption(label="Expert", emoji="🔴"),
+            ],
             custom_id="atc_server_select"
         )
 
@@ -101,13 +95,13 @@ class ServerSelect(discord.ui.Select):
         server_choice = self.values[0]
         server_key = SERVER_MAP[server_choice]
 
-        # 🔄 Get sessions
+        # 🔄 GET SESSION
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{BASE_URL}/sessions?apikey={IF_API_KEY}") as resp:
-                sessions_data = await resp.json()
+                sessions = await resp.json()
 
         session_id = None
-        for s in sessions_data.get("result", []):
+        for s in sessions.get("result", []):
             if server_key in s.get("name", "").lower():
                 session_id = s.get("id")
                 break
@@ -115,7 +109,7 @@ class ServerSelect(discord.ui.Select):
         if not session_id:
             return await interaction.followup.send("❌ Server not found")
 
-        # 📡 Get ATC
+        # 📡 GET ATC
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{BASE_URL}/sessions/{session_id}/atc?apikey={IF_API_KEY}"
@@ -125,16 +119,24 @@ class ServerSelect(discord.ui.Select):
         atc_list = atc_data.get("result", [])
 
         if not atc_list:
-            return await interaction.followup.send("❌ No active ATC")
+            return await interaction.followup.send(
+                f"❌ No active ATC on {server_choice}"
+            )
 
-        # 🏢 Group airports
+        # 🏢 GROUP AIRPORTS
         airports = {}
         for atc in atc_list:
             icao = atc.get("airportIcao")
             if icao:
                 airports.setdefault(icao, []).append(atc)
 
-        # 🎛️ Create dropdown
+        # 🚨 FIX: CHECK EMPTY
+        if not airports:
+            return await interaction.followup.send(
+                "❌ No airports with ATC found"
+            )
+
+        # ✅ CREATE DROPDOWN ONLY IF DATA EXISTS
         view = discord.ui.View(timeout=120)
         view.add_item(AirportSelect(airports, session_id, server_choice))
 
@@ -159,7 +161,7 @@ class ATC(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="atc", description="Show active ATC airports")
+    @app_commands.command(name="atc", description="Active ATC airports")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def atc(self, interaction: discord.Interaction):
 
