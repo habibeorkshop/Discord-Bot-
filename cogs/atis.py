@@ -1,105 +1,148 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import timedelta
+import aiohttp
+import os
 
 # 🔧 CONFIG
+IF_API_KEY = os.getenv("IF_API_KEY")
 GUILD_ID = 1493552564799672320
-STAFF_ROLE = 1493559145876557955
+BASE_URL = "https://api.infiniteflight.com/public/v2"
+
+SERVER_MAP = {
+    "Casual": "casual",
+    "Training": "training",
+    "Expert": "expert"
+}
 
 
-class Moderation(commands.Cog):
+# ================= DROPDOWN =================
+
+class ServerSelect(discord.ui.Select):
+    def __init__(self, airport: str):
+        self.airport = airport.upper()
+
+        options = [
+            discord.SelectOption(label="Casual", emoji="🟢"),
+            discord.SelectOption(label="Training", emoji="🟡"),
+            discord.SelectOption(label="Expert", emoji="🔴")
+        ]
+
+        super().__init__(
+            placeholder="Select server...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="atis_select_v2"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        server_choice = self.values[0]
+        server_key = SERVER_MAP[server_choice]
+
+        await interaction.response.defer(ephemeral=True)
+
+        # ================= GET SESSIONS =================
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{BASE_URL}/sessions?apikey={IF_API_KEY}") as resp:
+                sessions_data = await resp.json()
+
+        session_id = None
+        user_count = "Unknown"
+
+        for s in sessions_data.get("result", []):
+            if server_key in s.get("name", "").lower():
+                session_id = s.get("id")
+                user_count = s.get("userCount", "Unknown")
+                break
+
+        if not session_id:
+            return await interaction.followup.send("❌ Server not found")
+
+        # ================= GET ATIS =================
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{BASE_URL}/sessions/{session_id}/airport/{self.airport}/atis?apikey={IF_API_KEY}"
+            ) as resp:
+                atis_data = await resp.json()
+
+        atis_text = atis_data.get("result") or "No ATIS available"
+
+        # ================= GET METAR =================
+        metar_url = f"https://tgftp.nws.noaa.gov/data/observations/metar/stations/{self.airport}.TXT"
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(metar_url) as resp:
+                    metar_raw = await resp.text()
+                    metar_lines = metar_raw.split("\n")
+                    metar = metar_lines[1] if len(metar_lines) > 1 else "No METAR found"
+        except:
+            metar = "METAR unavailable"
+
+        # ================= EMBED =================
+        embed = discord.Embed(
+            title=f"✈️ ATIS + METAR — {self.airport}",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(
+            name="📡 ATIS",
+            value=f"```{atis_text[:1000]}```",
+            inline=False
+        )
+
+        embed.add_field(
+            name="🌦️ METAR",
+            value=f"```{metar}```",
+            inline=False
+        )
+
+        embed.add_field(
+            name="📊 Server",
+            value=f"{server_choice}",
+            inline=True
+        )
+
+        embed.add_field(
+            name="👥 Traffic",
+            value=f"{user_count} pilots",
+            inline=True
+        )
+
+        await interaction.followup.send(embed=embed)
+
+
+# ================= VIEW =================
+
+class ATISView(discord.ui.View):
+    def __init__(self, airport: str):
+        super().__init__(timeout=120)
+        self.add_item(ServerSelect(airport))
+
+
+# ================= COG =================
+
+class ATIS(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # 🔒 STAFF CHECK
-    def is_staff(self, interaction: discord.Interaction):
-        return STAFF_ROLE in [role.id for role in interaction.user.roles]
-
-    # ================= KICK =================
-    @app_commands.command(name="kick", description="Kick a member")
+    @app_commands.command(name="atis", description="Get ATIS + METAR + traffic")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
+    async def atis(self, interaction: discord.Interaction, airport: str):
 
-        await interaction.response.defer(ephemeral=True)
-
-        if not self.is_staff(interaction):
-            return await interaction.followup.send("❌ Staff only")
-
-        try:
-            await member.kick(reason=reason)
-            await interaction.followup.send(f"👢 {member.mention} kicked\nReason: {reason}")
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error: {e}")
-
-    # ================= BAN =================
-    @app_commands.command(name="ban", description="Ban a member")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
-
-        await interaction.response.defer(ephemeral=True)
-
-        if not self.is_staff(interaction):
-            return await interaction.followup.send("❌ Staff only")
-
-        try:
-            await member.ban(reason=reason)
-            await interaction.followup.send(f"🔨 {member.mention} banned\nReason: {reason}")
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error: {e}")
-
-    # ================= TIMEOUT =================
-    @app_commands.command(name="timeout", description="Timeout a member")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def timeout(self, interaction: discord.Interaction, member: discord.Member, minutes: int, reason: str = "No reason"):
-
-        await interaction.response.defer(ephemeral=True)
-
-        if not self.is_staff(interaction):
-            return await interaction.followup.send("❌ Staff only")
-
-        try:
-            until = discord.utils.utcnow() + timedelta(minutes=minutes)
-            await member.timeout(until, reason=reason)
-
-            await interaction.followup.send(
-                f"⏳ {member.mention} timed out for {minutes} minutes\nReason: {reason}"
+        if not IF_API_KEY:
+            return await interaction.response.send_message(
+                "❌ API key missing",
+                ephemeral=True
             )
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error: {e}")
 
-    # ================= REMOVE TIMEOUT =================
-    @app_commands.command(name="untimeout", description="Remove timeout")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def untimeout(self, interaction: discord.Interaction, member: discord.Member):
-
-        await interaction.response.defer(ephemeral=True)
-
-        if not self.is_staff(interaction):
-            return await interaction.followup.send("❌ Staff only")
-
-        try:
-            await member.timeout(None)
-            await interaction.followup.send(f"✅ Timeout removed for {member.mention}")
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error: {e}")
-
-    # ================= NICK =================
-    @app_commands.command(name="nick", description="Change nickname")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def nick(self, interaction: discord.Interaction, member: discord.Member, nickname: str):
-
-        await interaction.response.defer(ephemeral=True)
-
-        if not self.is_staff(interaction):
-            return await interaction.followup.send("❌ Staff only")
-
-        try:
-            await member.edit(nick=nickname)
-            await interaction.followup.send(f"✏️ Nickname changed for {member.mention}")
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error: {e}")
+        await interaction.response.send_message(
+            f"🛰️ Select server for **{airport.upper()}**",
+            view=ATISView(airport),
+            ephemeral=True
+        )
 
 
 async def setup(bot):
-    await bot.add_cog(Moderation(bot))
+    await bot.add_cog(ATIS(bot))
