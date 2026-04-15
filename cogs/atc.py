@@ -9,13 +9,20 @@ IF_API_KEY = os.getenv("IF_API_KEY")
 GUILD_ID = 1493552564799672320
 BASE_URL = "https://api.infiniteflight.com/public/v2"
 
+SERVER_MAP = {
+    "Casual": "casual",
+    "Training": "training",
+    "Expert": "expert"
+}
+
 
 # ================= AIRPORT SELECT =================
 
 class AirportSelect(discord.ui.Select):
-    def __init__(self, airports, session_id):
+    def __init__(self, airports, session_id, server_name):
         self.airports = airports
         self.session_id = session_id
+        self.server_name = server_name
 
         options = [
             discord.SelectOption(label=icao, description=f"{len(v)} ATC online")
@@ -25,7 +32,7 @@ class AirportSelect(discord.ui.Select):
         super().__init__(
             placeholder="Select airport...",
             options=options,
-            custom_id="atc_airport_select_expert"
+            custom_id="atc_airport_select"
         )
 
     async def callback(self, interaction: discord.Interaction):
@@ -34,16 +41,16 @@ class AirportSelect(discord.ui.Select):
         airport = self.values[0]
         atc_units = self.airports.get(airport, [])
 
-        # ================= CONTROLLERS =================
+        # 👨‍✈️ Controllers
         controllers = []
         for atc in atc_units:
             name = atc.get("username", "Unknown")
             freq = atc.get("frequency", "N/A")
             controllers.append(f"{name} ({freq})")
 
-        controller_text = "\n".join(controllers)[:1000] or "None"
+        controller_text = "\n".join(controllers) or "None"
 
-        # ================= TRAFFIC =================
+        # 📊 Traffic
         inbound = 0
         outbound = 0
 
@@ -59,74 +66,56 @@ class AirportSelect(discord.ui.Select):
             if f.get("departureAirportIcao") == airport:
                 outbound += 1
 
-        # ================= EMBED =================
+        # 📦 Embed
         embed = discord.Embed(
             title=f"📡 ATC Active — {airport}",
             color=discord.Color.green()
         )
 
-        embed.add_field(
-            name="👨‍✈️ Controllers",
-            value=controller_text,
-            inline=False
-        )
-
-        embed.add_field(
-            name="📊 Traffic",
-            value=f"🛬 Inbound: {inbound}\n🛫 Outbound: {outbound}",
-            inline=False
-        )
-
-        embed.add_field(
-            name="🌐 Server",
-            value="Expert",
-            inline=True
-        )
+        embed.add_field(name="👨‍✈️ Controllers", value=controller_text[:1000], inline=False)
+        embed.add_field(name="📊 Traffic", value=f"🛬 {inbound} | 🛫 {outbound}", inline=False)
+        embed.add_field(name="🌐 Server", value=self.server_name, inline=True)
 
         await interaction.followup.send(embed=embed)
 
 
-# ================= VIEW =================
+# ================= SERVER SELECT =================
 
-class ATCView(discord.ui.View):
-    def __init__(self, airports, session_id):
-        super().__init__(timeout=120)
-        self.add_item(AirportSelect(airports, session_id))
+class ServerSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Casual", emoji="🟢"),
+            discord.SelectOption(label="Training", emoji="🟡"),
+            discord.SelectOption(label="Expert", emoji="🔴")
+        ]
 
+        super().__init__(
+            placeholder="Select server...",
+            options=options,
+            custom_id="atc_server_select"
+        )
 
-# ================= COG =================
-
-class ATC(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-
-    @app_commands.command(name="atc", description="Show active ATC airports (Expert Server)")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def atc(self, interaction: discord.Interaction):
-
-        if not IF_API_KEY:
-            return await interaction.response.send_message(
-                "❌ API key missing",
-                ephemeral=True
-            )
-
+    async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        # ================= GET EXPERT SESSION =================
+        server_choice = self.values[0]
+        server_key = SERVER_MAP[server_choice]
+
+        # 🔄 Get sessions
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{BASE_URL}/sessions?apikey={IF_API_KEY}") as resp:
-                sessions = await resp.json()
+                sessions_data = await resp.json()
 
         session_id = None
-        for s in sessions.get("result", []):
-            if "expert" in s.get("name", "").lower():
+        for s in sessions_data.get("result", []):
+            if server_key in s.get("name", "").lower():
                 session_id = s.get("id")
                 break
 
         if not session_id:
-            return await interaction.followup.send("❌ Expert server not found")
+            return await interaction.followup.send("❌ Server not found")
 
-        # ================= GET ATC =================
+        # 📡 Get ATC
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{BASE_URL}/sessions/{session_id}/atc?apikey={IF_API_KEY}"
@@ -138,17 +127,52 @@ class ATC(commands.Cog):
         if not atc_list:
             return await interaction.followup.send("❌ No active ATC")
 
-        # Group by airport
+        # 🏢 Group airports
         airports = {}
         for atc in atc_list:
-            airport = atc.get("airportIcao")
-            if airport:
-                airports.setdefault(airport, []).append(atc)
+            icao = atc.get("airportIcao")
+            if icao:
+                airports.setdefault(icao, []).append(atc)
 
-        # Send dropdown
+        # 🎛️ Create dropdown
+        view = discord.ui.View(timeout=120)
+        view.add_item(AirportSelect(airports, session_id, server_choice))
+
         await interaction.followup.send(
-            "✈️ Select an airport with active ATC:",
-            view=ATCView(airports, session_id)
+            f"✈️ Active ATC Airports ({server_choice})",
+            view=view,
+            ephemeral=True
+        )
+
+
+# ================= VIEW =================
+
+class ATCView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+        self.add_item(ServerSelect())
+
+
+# ================= COG =================
+
+class ATC(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(name="atc", description="Show active ATC airports")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def atc(self, interaction: discord.Interaction):
+
+        if not IF_API_KEY:
+            return await interaction.response.send_message(
+                "❌ API key missing",
+                ephemeral=True
+            )
+
+        await interaction.response.send_message(
+            "🛰️ Select server:",
+            view=ATCView(),
+            ephemeral=True
         )
 
 
