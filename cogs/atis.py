@@ -9,6 +9,7 @@ IF_API_KEY = os.getenv("IF_API_KEY")
 GUILD_ID = 1493552564799672320
 BASE_URL = "https://api.infiniteflight.com/public/v2"
 
+
 SERVER_MAP = {
     "Casual": "casual",
     "Training": "training",
@@ -33,27 +34,24 @@ class ServerSelect(discord.ui.Select):
             min_values=1,
             max_values=1,
             options=options,
-            custom_id="atis_select_v2"
+            custom_id="atis_map_v3"
         )
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         server_choice = self.values[0]
         server_key = SERVER_MAP[server_choice]
 
-        await interaction.response.defer(ephemeral=True)
-
-        # ================= GET SESSIONS =================
+        # ================= GET SESSION =================
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{BASE_URL}/sessions?apikey={IF_API_KEY}") as resp:
-                sessions_data = await resp.json()
+                sessions = await resp.json()
 
         session_id = None
-        user_count = "Unknown"
-
-        for s in sessions_data.get("result", []):
+        for s in sessions.get("result", []):
             if server_key in s.get("name", "").lower():
                 session_id = s.get("id")
-                user_count = s.get("userCount", "Unknown")
                 break
 
         if not session_id:
@@ -74,15 +72,37 @@ class ServerSelect(discord.ui.Select):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(metar_url) as resp:
-                    metar_raw = await resp.text()
-                    metar_lines = metar_raw.split("\n")
-                    metar = metar_lines[1] if len(metar_lines) > 1 else "No METAR found"
+                    raw = await resp.text()
+                    metar = raw.split("\n")[1]
         except:
-            metar = "METAR unavailable"
+            metar = "Unavailable"
+
+        # ================= TRAFFIC =================
+        inbound = 0
+        outbound = 0
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{BASE_URL}/sessions/{session_id}/flights?apikey={IF_API_KEY}"
+            ) as resp:
+                flights = await resp.json()
+
+        for f in flights.get("result", []):
+            if f.get("arrivalAirportIcao") == self.airport:
+                inbound += 1
+            if f.get("departureAirportIcao") == self.airport:
+                outbound += 1
+
+        # ================= MAP =================
+        # OpenStreetMap static preview
+        map_url = f"https://static-maps.yandex.ru/1.x/?lang=en-US&ll=0,0&z=10&l=map"
+
+        # NOTE: IF API does not give coords easily → we skip exact location
+        # (can upgrade later with airport DB)
 
         # ================= EMBED =================
         embed = discord.Embed(
-            title=f"✈️ ATIS + METAR — {self.airport}",
+            title=f"✈️ {self.airport} Aviation Info",
             color=discord.Color.blue()
         )
 
@@ -99,14 +119,16 @@ class ServerSelect(discord.ui.Select):
         )
 
         embed.add_field(
-            name="📊 Server",
-            value=f"{server_choice}",
-            inline=True
+            name="📊 Traffic",
+            value=f"🛬 Inbound: {inbound}\n🛫 Outbound: {outbound}",
+            inline=False
         )
 
+        embed.set_image(url=map_url)
+
         embed.add_field(
-            name="👥 Traffic",
-            value=f"{user_count} pilots",
+            name="🌐 Server",
+            value=server_choice,
             inline=True
         )
 
@@ -127,7 +149,7 @@ class ATIS(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="atis", description="Get ATIS + METAR + traffic")
+    @app_commands.command(name="atis", description="Full aviation info")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def atis(self, interaction: discord.Interaction, airport: str):
 
