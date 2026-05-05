@@ -30,9 +30,14 @@ async def create_transcript(channel: discord.TextChannel):
 
 class CloseView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)  # MUST be None
 
-    @discord.ui.button(label=" Reopen", emoji="🔓", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=" Reopen",
+        emoji="🔓",
+        style=discord.ButtonStyle.secondary,
+        custom_id="ticket_reopen"  # ✅ REQUIRED
+    )
     async def reopen(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.channel.set_permissions(
@@ -42,7 +47,12 @@ class CloseView(discord.ui.View):
 
         await interaction.response.send_message("🔓 Ticket reopened.")
 
-    @discord.ui.button(label=" Delete", emoji="🗑️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label=" Delete",
+        emoji="🗑️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="ticket_delete"  # ✅ REQUIRED
+    )
     async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
@@ -50,7 +60,6 @@ class CloseView(discord.ui.View):
 
         await interaction.response.send_message("🗑️ Deleting ticket...")
 
-        # 📜 TRANSCRIPT
         transcript = await create_transcript(interaction.channel)
 
         log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
