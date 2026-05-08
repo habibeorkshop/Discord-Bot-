@@ -362,7 +362,7 @@ class Event(commands.Cog):
         embed = discord.Embed(
             title=f"🎉 {title}",
             description=description,
-            color=discord.Color.orange()
+            color=discord.Color.red()
         )
 
         embed.add_field(
