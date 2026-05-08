@@ -8,7 +8,7 @@ import re
 
 # ================= CONFIG =================
 
-STAFF_ROLE_ID = 1389824693388837035
+STAFF_ROLE_ID = 1493559145876557955
 GUILD_ID = 1493552564799672320
 
 IST = timezone(timedelta(hours=5, minutes=30))
