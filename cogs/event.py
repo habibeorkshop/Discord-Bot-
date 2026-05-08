@@ -8,31 +8,40 @@ import re
 
 # ================= CONFIG =================
 
-STAFF_ROLE_ID = 1493559145876557955  # Staff Role ID
+STAFF_ROLE_ID = 1389824693388837035
 GUILD_ID = 1493552564799672320
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# ================= DATETIME PARSER =================
+
+# ================= TIME PARSER =================
 
 def parse_datetime(input_str: str):
+
     input_str = input_str.strip().lower()
     now = datetime.now(IST)
 
     # in 2h30m
     match = re.match(r"in (\d+)h(?: ?(\d+)m)?", input_str)
+
     if match:
         hours = int(match.group(1))
         minutes = int(match.group(2)) if match.group(2) else 0
-        return now + timedelta(hours=hours, minutes=minutes)
+
+        return now + timedelta(
+            hours=hours,
+            minutes=minutes
+        )
 
     # tomorrow 18:30
     match = re.match(r"tomorrow (\d{1,2}):(\d{2})", input_str)
+
     if match:
+
         hour = int(match.group(1))
         minute = int(match.group(2))
 
-        dt = datetime(
+        return datetime(
             now.year,
             now.month,
             now.day,
@@ -40,8 +49,6 @@ def parse_datetime(input_str: str):
             minute,
             tzinfo=IST
         ) + timedelta(days=1)
-
-        return dt
 
     formats = [
         "%Y-%m-%d %H:%M",
@@ -64,7 +71,14 @@ def parse_datetime(input_str: str):
 
 class EventButtons(View):
 
-    def __init__(self, attendees, embed_msg, event_time, host, title):
+    def __init__(
+        self,
+        attendees,
+        embed_msg,
+        event_time,
+        host
+    ):
+
         super().__init__(timeout=None)
 
         self.attendees = attendees
@@ -72,24 +86,22 @@ class EventButtons(View):
         self.event_time = event_time
         self.host = host
         self.locked = False
-        self.title = title
 
     async def update_embed(self):
 
         embed = self.embed_msg.embeds[0]
 
-        unique_users = list(dict.fromkeys(self.attendees))
-
-        attending_text = (
-            "\n".join([f"• {u.mention}" for u in unique_users])
-            if unique_users
-            else "No attendees yet"
-        )
-
         timestamp = int(
             self.event_time.astimezone(timezone.utc).timestamp()
         )
 
+        attendees_text = (
+            "\n".join([f"• {u.mention}" for u in self.attendees])
+            if self.attendees
+            else "No attendees yet"
+        )
+
+        # UPDATE TIME FIELD
         embed.set_field_at(
             0,
             name="🕒 Event Time",
@@ -97,24 +109,33 @@ class EventButtons(View):
             inline=False
         )
 
+        # UPDATE ATTENDEES FIELD
         embed.set_field_at(
             1,
-            name=f"👥 Attendees ({len(unique_users)})",
-            value=attending_text,
+            name=f"👥 Attendees ({len(self.attendees)})",
+            value=attendees_text,
             inline=False
         )
 
-        embed.set_footer(
-            text=f"Hosted by {self.host}",
-            icon_url=self.host.display_avatar.url
+        # UPDATE STATUS FIELD
+        status = "🔒 Locked" if self.locked else "🟢 Open"
+
+        embed.set_field_at(
+            2,
+            name="📌 Status",
+            value=status,
+            inline=False
         )
 
-        await self.embed_msg.edit(embed=embed, view=self)
+        await self.embed_msg.edit(
+            embed=embed,
+            view=self
+        )
 
     # ================= JOIN =================
 
     @discord.ui.button(
-        label="Join Event",
+        label="Join",
         emoji="✅",
         style=discord.ButtonStyle.success,
         custom_id="event_join"
@@ -127,7 +148,7 @@ class EventButtons(View):
 
         if self.locked:
             return await interaction.response.send_message(
-                "❌ Event attendance is locked.",
+                "❌ Event is locked.",
                 ephemeral=True
             )
 
@@ -137,14 +158,14 @@ class EventButtons(View):
         await self.update_embed()
 
         await interaction.response.send_message(
-            "✅ You joined the event.",
+            "✅ Joined event.",
             ephemeral=True
         )
 
     # ================= LEAVE =================
 
     @discord.ui.button(
-        label="Leave Event",
+        label="Leave",
         emoji="❌",
         style=discord.ButtonStyle.danger,
         custom_id="event_leave"
@@ -161,7 +182,7 @@ class EventButtons(View):
         await self.update_embed()
 
         await interaction.response.send_message(
-            "❌ You left the event.",
+            "❌ Removed from event.",
             ephemeral=True
         )
 
@@ -179,13 +200,18 @@ class EventButtons(View):
         button: Button
     ):
 
-        if not any(role.id == STAFF_ROLE_ID for role in interaction.user.roles):
+        if not any(
+            role.id == STAFF_ROLE_ID
+            for role in interaction.user.roles
+        ):
             return await interaction.response.send_message(
                 "❌ Staff only.",
                 ephemeral=True
             )
 
         self.locked = True
+
+        await self.update_embed()
 
         await interaction.response.send_message(
             "🔒 Event locked.",
@@ -206,7 +232,10 @@ class EventButtons(View):
         button: Button
     ):
 
-        if not any(role.id == STAFF_ROLE_ID for role in interaction.user.roles):
+        if not any(
+            role.id == STAFF_ROLE_ID
+            for role in interaction.user.roles
+        ):
             return await interaction.response.send_message(
                 "❌ Staff only.",
                 ephemeral=True
@@ -221,7 +250,7 @@ class EventButtons(View):
 
 class EventEditModal(Modal):
 
-    def __init__(self, view: EventButtons):
+    def __init__(self, view):
 
         super().__init__(title="Edit Event")
 
@@ -268,7 +297,7 @@ class EventEditModal(Modal):
 
             if not new_dt:
                 return await interaction.response.send_message(
-                    "❌ Invalid datetime format.",
+                    "❌ Invalid datetime.",
                     ephemeral=True
                 )
 
@@ -282,7 +311,7 @@ class EventEditModal(Modal):
         )
 
 
-# ================= EVENT COG =================
+# ================= COG =================
 
 class Event(commands.Cog):
 
@@ -293,7 +322,9 @@ class Event(commands.Cog):
         name="createevent",
         description="Create advanced event"
     )
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    @app_commands.guilds(
+        discord.Object(id=GUILD_ID)
+    )
     async def createevent(
         self,
         interaction: discord.Interaction,
@@ -306,11 +337,13 @@ class Event(commands.Cog):
         start_ping: discord.Role = None
     ):
 
-        # ================= STAFF CHECK =================
-
-        if not any(role.id == STAFF_ROLE_ID for role in interaction.user.roles):
+        # STAFF ONLY
+        if not any(
+            role.id == STAFF_ROLE_ID
+            for role in interaction.user.roles
+        ):
             return await interaction.response.send_message(
-                "❌ Only staff members can use this command.",
+                "❌ Staff only.",
                 ephemeral=True
             )
 
@@ -318,7 +351,7 @@ class Event(commands.Cog):
 
         if not dt:
             return await interaction.response.send_message(
-                "❌ Invalid datetime.\n\nExamples:\n• tomorrow 18:30\n• in 2h30m\n• 2026-05-08 19:00",
+                "❌ Invalid datetime.",
                 ephemeral=True
             )
 
@@ -358,14 +391,8 @@ class Event(commands.Cog):
         if image:
             embed.set_image(url=image)
 
-        mention_text = (
-            create_ping.mention
-            if create_ping
-            else ""
-        )
-
         msg = await channel.send(
-            content=mention_text,
+            content=create_ping.mention if create_ping else None,
             embed=embed
         )
 
@@ -375,8 +402,7 @@ class Event(commands.Cog):
             attendees,
             msg,
             dt,
-            interaction.user,
-            title
+            interaction.user
         )
 
         await msg.edit(view=view)
@@ -386,58 +412,53 @@ class Event(commands.Cog):
             ephemeral=True
         )
 
-        # ================= EVENT START =================
+        # ================= WAIT FOR EVENT =================
 
-        while True:
+        while datetime.now(timezone.utc) < dt.astimezone(timezone.utc):
+            await asyncio.sleep(15)
 
-            now = datetime.now(timezone.utc)
-
-            if now >= dt.astimezone(timezone.utc):
-                break
-
-            await asyncio.sleep(30)
-
+        # LOCK EVENT
         view.locked = True
 
+        await view.update_embed()
+
+        # START EMBED
         start_embed = discord.Embed(
             title=f"🚀 {title} Started!",
-            description="The event is now live.",
+            description="The event is now live!",
             color=discord.Color.green()
-        )
-
-        attendees_text = (
-            "\n".join([u.mention for u in attendees])
-            if attendees
-            else "No attendees"
         )
 
         start_embed.add_field(
             name="👥 Participants",
-            value=attendees_text,
+            value=(
+                "\n".join([u.mention for u in attendees])
+                if attendees
+                else "No attendees"
+            ),
             inline=False
         )
 
-        start_mention = (
-            start_ping.mention
-            if start_ping
-            else ""
-        )
-
+        # START PING FIXED
         await channel.send(
-            content=start_mention,
+            content=start_ping.mention if start_ping else None,
             embed=start_embed
         )
 
+        # UPDATE MAIN EMBED STATUS
         final_embed = msg.embeds[0]
 
         final_embed.set_field_at(
             2,
             name="📌 Status",
-            value="🔴 Started",
+            value="🚀 Started",
             inline=False
         )
 
-        await msg.edit(embed=final_embed, view=view)
+        await msg.edit(
+            embed=final_embed,
+            view=view
+        )
 
 
 # ================= SETUP =================
