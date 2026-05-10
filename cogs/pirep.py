@@ -67,14 +67,26 @@ def get_rank(flights):
 
 class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
 
-    username = discord.ui.TextInput(label="Username")
-    departure = discord.ui.TextInput(label="Departure ICAO")
-    arrival = discord.ui.TextInput(label="Arrival ICAO")
-    flight_time = discord.ui.TextInput(label="Flight Time")
-    aircraft = discord.ui.TextInput(label="Aircraft")
-    operator = discord.ui.TextInput(label="Operator")
-    multiplier = discord.ui.TextInput(label="Multiplier")
-    landing_rate = discord.ui.TextInput(label="Landing Rate", required=False)
+    route = discord.ui.TextInput(
+        label="Route",
+        placeholder="VABB - OMDB"
+    )
+
+    flight_details = discord.ui.TextInput(
+        label="Aircraft | Operator",
+        placeholder="B737 MAX 8 | SpiceJet"
+    )
+
+    flight_time = discord.ui.TextInput(
+        label="Flight Time",
+        placeholder="2h 15m"
+    )
+
+    multiplier = discord.ui.TextInput(
+        label="Multiplier",
+        placeholder="1.5x"
+    )
+
     remarks = discord.ui.TextInput(
         label="Remarks",
         style=discord.TextStyle.paragraph,
@@ -83,12 +95,25 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
-        dep = self.departure.value.upper()
-        arr = self.arrival.value.upper()
+        try:
+            dep, arr = [x.strip().upper() for x in self.route.value.split("-")]
+        except:
+            return await interaction.response.send_message(
+                "❌ Route format must be:\nVABB - OMDB",
+                ephemeral=True
+            )
 
         if not valid_icao(dep) or not valid_icao(arr):
             return await interaction.response.send_message(
                 "❌ Invalid ICAO format.",
+                ephemeral=True
+            )
+
+        try:
+            aircraft, operator = [x.strip() for x in self.flight_details.value.split("|")]
+        except:
+            return await interaction.response.send_message(
+                "❌ Format must be:\nAircraft | Operator",
                 ephemeral=True
             )
 
@@ -99,17 +124,14 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
         data = {
             "id": pirep_id,
             "user_id": interaction.user.id,
-            "username": self.username.value,
             "departure": dep,
             "arrival": arr,
             "flight_time": self.flight_time.value,
-            "aircraft": self.aircraft.value,
-            "operator": self.operator.value,
+            "aircraft": aircraft,
+            "operator": operator,
             "multiplier": self.multiplier.value,
-            "landing_rate": self.landing_rate.value,
             "remarks": self.remarks.value,
-            "status": "Pending",
-            "timestamp": str(datetime.utcnow())
+            "status": "Pending"
         }
 
         pireps.append(data)
@@ -120,29 +142,21 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
             color=discord.Color.orange()
         )
 
-        embed.add_field(name="Username", value=self.username.value, inline=True)
+        embed.add_field(name="Pilot", value=interaction.user.mention, inline=True)
         embed.add_field(name="Route", value=f"{dep} → {arr}", inline=True)
         embed.add_field(name="Flight Time", value=self.flight_time.value, inline=True)
-        embed.add_field(name="Aircraft", value=self.aircraft.value, inline=True)
-        embed.add_field(name="Operator", value=self.operator.value, inline=True)
+        embed.add_field(name="Aircraft", value=aircraft, inline=True)
+        embed.add_field(name="Operator", value=operator, inline=True)
         embed.add_field(name="Multiplier", value=self.multiplier.value, inline=True)
-
-        if self.landing_rate.value:
-            embed.add_field(name="Landing Rate", value=self.landing_rate.value, inline=True)
 
         if self.remarks.value:
             embed.add_field(name="Remarks", value=self.remarks.value, inline=False)
 
         embed.add_field(name="Status", value="🟡 Pending Review", inline=False)
 
-        embed.set_footer(
-            text=f"Submitted by {interaction.user}",
-            icon_url=interaction.user.display_avatar.url
-        )
-
         log_channel = interaction.guild.get_channel(PIREP_LOG_CHANNEL_ID)
 
-        msg = await log_channel.send(
+        await log_channel.send(
             embed=embed,
             view=PirepButtons(pirep_id, interaction.user.id)
         )
@@ -151,6 +165,7 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
             "✅ PIREP submitted successfully.",
             ephemeral=True
         )
+        
 
 # ================= BUTTONS =================
 
