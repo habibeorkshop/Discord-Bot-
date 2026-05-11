@@ -253,7 +253,58 @@ class PirepButtons(discord.ui.View):
                 p["reviewed_by"] = interaction.user.name
                 target = p
 
+@discord.ui.button(
+    label="Approve",
+    emoji="✅",
+    style=discord.ButtonStyle.success,
+    custom_id="approve_pirep_btn"
+)
+async def approve(
+    self,
+    interaction: discord.Interaction,
+    button: discord.ui.Button
+):
+
+    # ================= STAFF CHECK =================
+
+    if STAFF_ROLE not in [r.id for r in interaction.user.roles]:
+
+        return await interaction.response.send_message(
+            "❌ Staff only.",
+            ephemeral=True
+        )
+
+    # IMPORTANT
+    await interaction.response.defer(ephemeral=True)
+
+    try:
+
+        pireps = load_json(PIREP_FILE, [])
+
+        target = None
+
+        # ================= FIND PIREP =================
+
+        for p in pireps:
+
+            if p["id"] == self.pirep_id:
+
+                p["status"] = "Approved"
+                p["reviewed_by"] = interaction.user.name
+
+                target = p
+                break
+
+        if not target:
+
+            return await interaction.followup.send(
+                "❌ PIREP not found.",
+                ephemeral=True
+            )
+
         save_json(PIREP_FILE, pireps)
+
+        # ================= HOURS =================
 
         approved = [
             p for p in pireps
@@ -268,66 +319,100 @@ class PirepButtons(discord.ui.View):
 
         total_hours = round(total_minutes / 60, 1)
 
-        old_rank, _ = get_rank(
-            max(
-                total_hours - flight_hours_to_decimal(
-                    target["flight_time"]
-                ),
-                0
-            )
-        )
+        # ================= RANK =================
 
-        new_rank, _ = get_rank(total_hours)
+        rank_name, next_rank = get_rank(total_hours)
 
-        member = interaction.guild.get_member(
-            self.pilot_id
-        )
+        member = interaction.guild.get_member(self.pilot_id)
 
-        # =================================================
-        # AUTO ROLE SYSTEM
-        # =================================================
+        # ================= ROLE SYSTEM =================
 
         if member:
 
-            for role_id in RANK_ROLES.values():
+            try:
 
-                role = interaction.guild.get_role(role_id)
+                # Remove old rank roles
+                for role_id in RANK_ROLES.values():
 
-                if role and role in member.roles:
-                    await member.remove_roles(role)
+                    role = interaction.guild.get_role(role_id)
 
-            best_role = None
+                    if role and role in member.roles:
+                        await member.remove_roles(role)
 
-            for req, role_id in RANK_ROLES.items():
+                # Add best rank role
+                best_role = None
 
-                if total_hours >= req:
-                    best_role = interaction.guild.get_role(role_id)
+                for req, role_id in RANK_ROLES.items():
 
-            if best_role:
-                await member.add_roles(best_role)
+                    if total_hours >= req:
 
-        # =================================================
-        # UPDATE EMBED
-        # =================================================
+                        best_role = interaction.guild.get_role(role_id)
 
-        embed = interaction.message.embeds[0]
+                if best_role:
+                    await member.add_roles(best_role)
 
-        embed.color = discord.Color.green()
+            except Exception as e:
+                print(f"Role Error: {e}")
 
-        for i, field in enumerate(embed.fields):
+        # ================= UPDATE EMBED =================
 
-            if field.name == "Status":
+        try:
 
-                embed.set_field_at(
-                    i,
-                    name="Status",
-                    value=f"🟢 Approved by {interaction.user.mention}",
-                    inline=False
+            embed = interaction.message.embeds[0]
+
+            embed.color = discord.Color.green()
+
+            for i, field in enumerate(embed.fields):
+
+                if field.name == "Status":
+
+                    embed.set_field_at(
+                        i,
+                        name="Status",
+                        value=f"🟢 Approved by {interaction.user.mention}",
+                        inline=False
+                    )
+
+            await interaction.message.edit(
+                embed=embed,
+                view=self
+            )
+
+        except Exception as e:
+            print(f"Embed Error: {e}")
+
+        # ================= DM USER =================
+
+        if member:
+
+            try:
+
+                await member.send(
+                    f"""
+✅ Your PIREP #{self.pirep_id} was approved.
+
+🕒 Total Hours: {total_hours}
+🏅 Rank: {rank_name}
+"""
                 )
 
-        await interaction.message.edit(
-            embed=embed,
-            view=self
+            except:
+                pass
+
+        # ================= SUCCESS =================
+
+        await interaction.followup.send(
+            "✅ PIREP approved successfully.",
+            ephemeral=True
+        )
+
+    except Exception as e:
+
+        print(f"APPROVE BUTTON ERROR: {e}")
+
+        await interaction.followup.send(
+            f"❌ Error:\n```{e}```",
+            ephemeral=True
         )
 
         # =================================================
@@ -706,10 +791,11 @@ class PirepPanel(discord.ui.View):
 class Pirep(commands.Cog):
 
     def __init__(self, bot):
-
         self.bot = bot
 
+        # Persistent Views
         self.bot.add_view(PirepPanel())
+        self.bot.add_view(PirepButtons(0, 0))
 
     # =====================================================
     # /PIREP-STATS
