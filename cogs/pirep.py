@@ -287,32 +287,141 @@ class PirepButtons(discord.ui.View):
             embed=embed,
             view=self
         )
+        
+# =========================================================
+# 🏅 ADVANCED RANK PROMOTION SYSTEM
+# =========================================================
 
-        # =================================================
-        # RANKUP CHANNEL
-        # =================================================
+old_rank, _ = get_rank(max(total_hours - float(target["flight_time"].split("h")[0]), 0))
+new_rank, _ = get_rank(total_hours)
 
-        rankup_channel = interaction.guild.get_channel(
-            RANKUP_CHANNEL_ID
+if old_rank != new_rank:
+
+    rank_channel = interaction.guild.get_channel(
+        RANKUP_CHANNEL_ID
+    )
+
+    if rank_channel:
+
+        promotion_embed = discord.Embed(
+            title="🏅 SGVA Rank Promotion",
+            description=(
+                f"Congratulations {member.mention}!\n\n"
+                f"You have officially been promoted within "
+                f"**SpiceJet Virtual Airlines**."
+            ),
+            color=discord.Color.red()
         )
 
-        if rankup_channel and member:
+        promotion_embed.add_field(
+            name="🧑‍✈️ Pilot",
+            value=member.mention,
+            inline=True
+        )
 
-            await rankup_channel.send(
-                f"""
-🏅 **Pilot Rank Updated**
+        promotion_embed.add_field(
+            name="📈 Previous Rank",
+            value=old_rank,
+            inline=True
+        )
 
-👨‍✈️ Pilot: {member.mention}
-✈️ PIREP ID: #{self.pirep_id}
+        promotion_embed.add_field(
+            name="🎖️ New Rank",
+            value=new_rank,
+            inline=True
+        )
 
-🕒 Total Hours: {total_hours}
-📊 Approved Flights: {len(approved)}
+        promotion_embed.add_field(
+            name="🕒 Total Flight Hours",
+            value=f"{total_hours} Hours",
+            inline=True
+        )
 
-🏅 Current Rank: **{rank_name}**
+        promotion_embed.add_field(
+            name="✈️ Total Approved Flights",
+            value=str(len(approved)),
+            inline=True
+        )
 
-✅ Approved By: {interaction.user.mention}
-"""
+        promotion_embed.add_field(
+            name="📊 Latest Flight",
+            value=(
+                f"{target['departure']} → "
+                f"{target['arrival']}"
+            ),
+            inline=True
+        )
+
+        promotion_embed.add_field(
+            name="🛩️ Aircraft",
+            value=target["aircraft"],
+            inline=True
+        )
+
+        promotion_embed.add_field(
+            name="🎟️ Flight Number",
+            value=target["flight_number"],
+            inline=True
+        )
+
+        promotion_embed.add_field(
+            name="👨‍✈️ Reviewed By",
+            value=interaction.user.mention,
+            inline=True
+        )
+
+        promotion_embed.set_thumbnail(
+            url=member.display_avatar.url
+        )
+
+        promotion_embed.set_footer(
+            text="SGVA Pilot Rank System"
+        )
+
+        await rank_channel.send(
+            content=f"🎉 Congratulations {member.mention}!",
+            embed=promotion_embed
+        )
+
+        # =====================================================
+        # DM PROMOTION
+        # =====================================================
+
+        try:
+
+            dm_embed = discord.Embed(
+                title="🏅 You Have Been Promoted!",
+                description=(
+                    f"You are now ranked as **{new_rank}** "
+                    f"in SGVA."
+                ),
+                color=discord.Color.red()
             )
+
+            dm_embed.add_field(
+                name="Previous Rank",
+                value=old_rank
+            )
+
+            dm_embed.add_field(
+                name="New Rank",
+                value=new_rank
+            )
+
+            dm_embed.add_field(
+                name="Total Hours",
+                value=f"{total_hours} Hours"
+            )
+
+            dm_embed.set_footer(
+                text="Keep flying with SGVA ✈️"
+            )
+
+            await member.send(embed=dm_embed)
+
+        except:
+            pass
+        
 
         # =================================================
         # DM USER
