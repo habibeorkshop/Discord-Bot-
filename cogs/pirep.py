@@ -1,22 +1,22 @@
 # =========================================================
-# ✈️ SGVA ADVANCED PIREP SYSTEM
+# ✈️ SGVA ADVANCED PIREP SYSTEM (FIXED VERSION)
 # =========================================================
 #
-# FEATURES:
+# ✅ FIXED APPROVE BUTTON
+# ✅ FIXED /pirep-stats
+# ✅ IMPROVED PANEL EMBED
+# ✅ PERSISTENT BUTTONS
+# ✅ EDIT BUTTON WORKING
+# ✅ AUTO RANK SYSTEM
+# ✅ AUTO ROLE PROGRESSION
+# ✅ PIREP LIST
+# ✅ PIREP STATS
+# ✅ PILOT RANK SYSTEM
+# ✅ DM NOTIFICATIONS
+# ✅ JSON DATABASE
 #
-# ✅ PIREP Panel
-# ✅ Modal Submission
-# ✅ JSON Database
-# ✅ Approve / Deny System
-# ✅ Staff Edit Button
-# ✅ Total Flight Hours Tracking
-# ✅ Rank Progression System
-# ✅ Auto Discord Rank Roles
-# ✅ Pilot Statistics
-# ✅ Rank Command
-# ✅ Recent PIREPs
-# ✅ Pilot DM Notifications
-# ✅ Persistent Buttons
+# FILE NAME:
+# pirep.py
 #
 # =========================================================
 
@@ -35,31 +35,28 @@ GUILD_ID = 1493552564799672320
 
 STAFF_ROLE = 1493559145876557955
 
-PIREP_LOG_CHANNEL_ID = 1493812350908760065  # ADD CHANNEL ID
+PIREP_LOG_CHANNEL_ID = 1493812350908760065
 
 # =========================================================
-# ✈️ RANK ROLES
+# 🏅 RANK ROLE IDS
 # =========================================================
 
 RANK_ROLES = {
-    0: 1500899695994601472,      # Cadet
-    5: 1500900295637602495,      # Junior First Officer
-    15: 1500900431180599316,     # Senior First Officer
-    35: 1500900552438186236,     # Captain 
-    60: 1500900613821694014,     # Senior Captain
-    100: 1500900801176928467,    # Chief Pilot
-    200: 1500900874782769333,    # Elite Pilot
+    0: 1500899695994601472,
+    5: 1500900295637602495,
+    15: 1500900431180599316,
+    35: 1500900552438186236,
+    60: 1500900613821694014,
+    100: 1500900801176928467,
+    200: 1500900874782769333,
 }
 
 # =========================================================
-# 📁 FILES
+# 📁 DATABASE
 # =========================================================
 
 PIREP_FILE = "pireps.json"
 
-# =========================================================
-# 📁 JSON SYSTEM
-# =========================================================
 
 def load_json(path, default):
     if not os.path.exists(path):
@@ -99,31 +96,31 @@ def parse_flight_time(time_str):
 
 
 # =========================================================
-# 🧑‍✈️ RANK SYSTEM
+# 🏅 RANK SYSTEM
 # =========================================================
 
 def get_rank(total_hours):
 
-    rank_name = "Cadet"
-    next_rank = None
-
     ranks = [
         (0, "Cadet"),
         (5, "Junior First Officer"),
-        (15, " Senior First Officer"),
-        (35, " Captain"),
-        (60, " Senior Captain"),
-        (100, "Chief Pilot")
+        (15, "Senior First Officer"),
+        (35, "Captain"),
+        (60, "Senior Captain"),
+        (100, "Chief Pilot"),
         (200, "Elite Pilot")
     ]
 
+    current_rank = "Cadet"
+    next_rank = None
+
     for req, rank in ranks:
         if total_hours >= req:
-            rank_name = rank
-        elif not next_rank:
+            current_rank = rank
+        elif next_rank is None:
             next_rank = (req, rank)
 
-    return rank_name, next_rank
+    return current_rank, next_rank
 
 
 # =========================================================
@@ -191,7 +188,7 @@ class PirepButtons(discord.ui.View):
         label="Approve",
         emoji="✅",
         style=discord.ButtonStyle.success,
-        custom_id="pirep_approve"
+        custom_id="approve_pirep_btn"
     )
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -201,18 +198,19 @@ class PirepButtons(discord.ui.View):
                 ephemeral=True
             )
 
+        await interaction.response.defer(ephemeral=True)
+
         pireps = load_json(PIREP_FILE, [])
+
+        target = None
 
         for p in pireps:
             if p["id"] == self.pirep_id:
                 p["status"] = "Approved"
                 p["reviewed_by"] = interaction.user.name
+                target = p
 
         save_json(PIREP_FILE, pireps)
-
-        # =================================================
-        # 📊 TOTAL HOURS
-        # =================================================
 
         approved = [
             p for p in pireps
@@ -227,24 +225,22 @@ class PirepButtons(discord.ui.View):
 
         total_hours = round(total_minutes / 60, 1)
 
-        # =================================================
-        # 🧑‍✈️ RANK
-        # =================================================
-
         rank_name, next_rank = get_rank(total_hours)
 
         member = interaction.guild.get_member(self.pilot_id)
 
+        # =================================================
+        # AUTO ROLE SYSTEM
+        # =================================================
+
         if member:
 
-            # REMOVE OLD RANKS
             for role_id in RANK_ROLES.values():
                 role = interaction.guild.get_role(role_id)
 
-                if role in member.roles:
+                if role and role in member.roles:
                     await member.remove_roles(role)
 
-            # ADD NEW RANK
             best_role = None
 
             for req, role_id in RANK_ROLES.items():
@@ -255,7 +251,7 @@ class PirepButtons(discord.ui.View):
                 await member.add_roles(best_role)
 
         # =================================================
-        # EMBED UPDATE
+        # UPDATE EMBED
         # =================================================
 
         embed = interaction.message.embeds[0]
@@ -263,7 +259,9 @@ class PirepButtons(discord.ui.View):
         embed.color = discord.Color.green()
 
         for i, field in enumerate(embed.fields):
+
             if field.name == "Status":
+
                 embed.set_field_at(
                     i,
                     name="Status",
@@ -271,29 +269,27 @@ class PirepButtons(discord.ui.View):
                     inline=False
                 )
 
-        await interaction.message.edit(
-            embed=embed,
-            view=self
-        )
+        await interaction.message.edit(embed=embed, view=self)
 
         # =================================================
         # DM USER
         # =================================================
 
         if member:
+
             try:
                 await member.send(
                     f"""
 ✅ Your PIREP #{self.pirep_id} was approved.
 
 🕒 Total Hours: {total_hours}
-🧑‍✈️ Rank: {rank_name}
+🏅 Rank: {rank_name}
 """
                 )
             except:
                 pass
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "✅ PIREP approved.",
             ephemeral=True
         )
@@ -306,7 +302,7 @@ class PirepButtons(discord.ui.View):
         label="Deny",
         emoji="❌",
         style=discord.ButtonStyle.danger,
-        custom_id="pirep_deny"
+        custom_id="deny_pirep_btn"
     )
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -315,6 +311,8 @@ class PirepButtons(discord.ui.View):
                 "❌ Staff only.",
                 ephemeral=True
             )
+
+        await interaction.response.defer(ephemeral=True)
 
         pireps = load_json(PIREP_FILE, [])
 
@@ -329,7 +327,9 @@ class PirepButtons(discord.ui.View):
         embed.color = discord.Color.red()
 
         for i, field in enumerate(embed.fields):
+
             if field.name == "Status":
+
                 embed.set_field_at(
                     i,
                     name="Status",
@@ -339,7 +339,7 @@ class PirepButtons(discord.ui.View):
 
         await interaction.message.edit(embed=embed, view=self)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "❌ PIREP denied.",
             ephemeral=True
         )
@@ -352,7 +352,7 @@ class PirepButtons(discord.ui.View):
         label="Edit",
         emoji="✏️",
         style=discord.ButtonStyle.secondary,
-        custom_id="pirep_edit"
+        custom_id="edit_pirep_btn"
     )
     async def edit(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -373,18 +373,14 @@ class PirepButtons(discord.ui.View):
 
 class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
 
-    flight_number = discord.ui.TextInput(
-        label="Flight Number"
-    )
+    flight_number = discord.ui.TextInput(label="Flight Number")
 
     route = discord.ui.TextInput(
         label="From - To",
         placeholder="VABB - OMDB"
     )
 
-    aircraft = discord.ui.TextInput(
-        label="Aircraft"
-    )
+    aircraft = discord.ui.TextInput(label="Aircraft")
 
     flight_time = discord.ui.TextInput(
         label="Flight Time",
@@ -392,9 +388,18 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
     )
 
     operator = discord.ui.TextInput(
-        label="Operator | Multiplier | Comments",
+        label="Operator"
+    )
+
+    multiplier = discord.ui.TextInput(
+        label="Multiplier",
+        placeholder="1.0x"
+    )
+
+    comments = discord.ui.TextInput(
+        label="Comments (Optional)",
         style=discord.TextStyle.paragraph,
-        placeholder="SpiceJet | 1.5x | Smooth flight"
+        required=False
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -402,11 +407,6 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
         dep, arr = [
             x.strip().upper()
             for x in self.route.value.split("-")
-        ]
-
-        operator, multiplier, comments = [
-            x.strip()
-            for x in self.operator.value.split("|")
         ]
 
         pireps = load_json(PIREP_FILE, [])
@@ -421,9 +421,9 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
             "arrival": arr,
             "aircraft": self.aircraft.value,
             "flight_time": self.flight_time.value,
-            "operator": operator,
-            "multiplier": multiplier,
-            "comments": comments,
+            "operator": self.operator.value,
+            "multiplier": self.multiplier.value,
+            "comments": self.comments.value,
             "status": "Pending"
         }
 
@@ -436,39 +436,16 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
             color=discord.Color.orange()
         )
 
-        embed.add_field(
-            name="Flight Number",
-            value=self.flight_number.value
-        )
-
-        embed.add_field(
-            name="Route",
-            value=f"{dep} → {arr}"
-        )
-
-        embed.add_field(
-            name="Aircraft",
-            value=self.aircraft.value
-        )
-
-        embed.add_field(
-            name="Flight Time",
-            value=self.flight_time.value
-        )
-
-        embed.add_field(
-            name="Operator",
-            value=operator
-        )
-
-        embed.add_field(
-            name="Multiplier",
-            value=multiplier
-        )
+        embed.add_field(name="Flight Number", value=self.flight_number.value)
+        embed.add_field(name="Route", value=f"{dep} → {arr}")
+        embed.add_field(name="Aircraft", value=self.aircraft.value)
+        embed.add_field(name="Flight Time", value=self.flight_time.value)
+        embed.add_field(name="Operator", value=self.operator.value)
+        embed.add_field(name="Multiplier", value=self.multiplier.value)
 
         embed.add_field(
             name="Comments",
-            value=comments or "None",
+            value=self.comments.value or "None",
             inline=False
         )
 
@@ -497,13 +474,13 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
         )
 
         await interaction.response.send_message(
-            "✅ PIREP submitted.",
+            "✅ PIREP submitted successfully.",
             ephemeral=True
         )
 
 
 # =========================================================
-# ✈️ PANEL
+# ✈️ PANEL VIEW
 # =========================================================
 
 class PirepPanel(discord.ui.View):
@@ -515,7 +492,7 @@ class PirepPanel(discord.ui.View):
         label="Submit PIREP",
         emoji="✈️",
         style=discord.ButtonStyle.secondary,
-        custom_id="submit_pirep"
+        custom_id="submit_pirep_button"
     )
     async def submit(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -536,7 +513,7 @@ class Pirep(commands.Cog):
         self.bot.add_view(PirepPanel())
 
     # =====================================================
-    # PANEL
+    # PANEL COMMAND
     # =====================================================
 
     @app_commands.command(
@@ -560,10 +537,23 @@ class Pirep(commands.Cog):
         embed = discord.Embed(
             title="✈️ SGVA PIREP Centre",
             description=(
-                "Submit your completed flights.\n"
-                "Staff will review shortly."
+                "Welcome to the PIREP submission center! "
+                "Please submit your completed flights here for review and logging.\n\n"
+
+                "📌 Make sure to include accurate flight details, including:\n\n"
+
+                "- Flight Number\n"
+                "- Departure & Arrival Airports\n"
+                "- Aircraft Used\n"
+                "- Flight Time\n"
+                "- Route Information\n\n"
+
+                "📊 Our staff team will review your PIREP as soon as possible. "
+                "Once approved, your flight hours and statistics will be updated automatically.\n\n"
+
+                "Thank you for flying with SGVA, and enjoy your journey in the Infinite Flight skies! ✈️"
             ),
-            color=discord.Color.red()
+            color=discord.Color.orange()
         )
 
         await channel.send(
@@ -602,22 +592,25 @@ class Pirep(commands.Cog):
                 ephemeral=True
             )
 
-        lines = []
+        embed = discord.Embed(
+            title="✈️ Your Recent PIREPs",
+            color=discord.Color.orange()
+        )
 
         for p in reversed(user_pireps):
 
-            lines.append(
-                f"""
-✈️ #{p['id']}
-📍 {p['departure']} → {p['arrival']}
-🛩️ {p['aircraft']}
-📊 {p['status']}
-"""
+            embed.add_field(
+                name=f"PIREP #{p['id']} • {p['status']}",
+                value=(
+                    f"📍 {p['departure']} → {p['arrival']}\n"
+                    f"🛩️ {p['aircraft']}\n"
+                    f"🕒 {p['flight_time']}"
+                ),
+                inline=False
             )
 
         await interaction.response.send_message(
-            "# ✈️ Recent PIREPs\n"
-            + "\n".join(lines),
+            embed=embed,
             ephemeral=True
         )
 
@@ -634,6 +627,8 @@ class Pirep(commands.Cog):
         interaction: discord.Interaction
     ):
 
+        await interaction.response.defer(ephemeral=True)
+
         pireps = load_json(PIREP_FILE, [])
 
         approved = [
@@ -642,16 +637,16 @@ class Pirep(commands.Cog):
             and p["status"] == "Approved"
         ]
 
-        denied = [
-            p for p in pireps
-            if p["user_id"] == interaction.user.id
-            and p["status"] == "Denied"
-        ]
-
         pending = [
             p for p in pireps
             if p["user_id"] == interaction.user.id
             and p["status"] == "Pending"
+        ]
+
+        denied = [
+            p for p in pireps
+            if p["user_id"] == interaction.user.id
+            and p["status"] == "Denied"
         ]
 
         total_minutes = sum(
@@ -666,74 +661,67 @@ class Pirep(commands.Cog):
 
         rank_name, next_rank = get_rank(total_hours_decimal)
 
-        await interaction.response.send_message(
-            f"""
-# 📊 Pilot Statistics
-
-🧑‍✈️ Pilot: {interaction.user.mention}
-
-✈️ Total Flights: {len(approved)}
-🕒 Total Hours: {hours}h {minutes}m
-
-🟢 Approved: {len(approved)}
-🟡 Pending: {len(pending)}
-🔴 Denied: {len(denied)}
-
-🏅 Current Rank: {rank_name}
-""",
-            ephemeral=True
+        embed = discord.Embed(
+            title="📊 Pilot Statistics",
+            color=discord.Color.orange()
         )
 
-    # =====================================================
-    # 🧑‍✈️ RANK
-    # =====================================================
-
-    @app_commands.command(
-        name="rank",
-        description="View your pilot rank"
-    )
-    async def rank(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        pireps = load_json(PIREP_FILE, [])
-
-        approved = [
-            p for p in pireps
-            if p["user_id"] == interaction.user.id
-            and p["status"] == "Approved"
-        ]
-
-        total_minutes = sum(
-            parse_flight_time(p["flight_time"])
-            for p in approved
+        embed.add_field(
+            name="Pilot",
+            value=interaction.user.mention,
+            inline=False
         )
 
-        total_hours = round(total_minutes / 60, 1)
+        embed.add_field(
+            name="Total Flights",
+            value=str(len(approved)),
+            inline=True
+        )
 
-        rank_name, next_rank = get_rank(total_hours)
+        embed.add_field(
+            name="Total Hours",
+            value=f"{hours}h {minutes}m",
+            inline=True
+        )
 
-        text = f"""
-# 🧑‍✈️ Pilot Rank
+        embed.add_field(
+            name="Current Rank",
+            value=rank_name,
+            inline=True
+        )
 
-🏅 Rank: {rank_name}
-🕒 Hours: {total_hours}
-"""
+        embed.add_field(
+            name="Approved",
+            value=str(len(approved)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="Pending",
+            value=str(len(pending)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="Denied",
+            value=str(len(denied)),
+            inline=True
+        )
 
         if next_rank:
+
             req, next_name = next_rank
 
-            remain = round(req - total_hours, 1)
+            remain = round(req - total_hours_decimal, 1)
 
-            text += f"""
+            embed.add_field(
+                name="Next Rank",
+                value=f"{next_name}\n{remain}h remaining",
+                inline=False
+            )
 
-📈 Next Rank: {next_name}
-⏳ Remaining: {remain}h
-"""
-
-        await interaction.response.send_message(
-            text,
+        await interaction.followup.send(
+            embed=embed,
             ephemeral=True
         )
 
@@ -743,4 +731,5 @@ class Pirep(commands.Cog):
 # =========================================================
 
 async def setup(bot):
+
     await bot.add_cog(Pirep(bot))
