@@ -1,23 +1,22 @@
 # =========================================================
-# ✈️ SGVA ADVANCED PIREP SYSTEM (FULLY FIXED)
+# ✈️ SGVA ADVANCED PIREP SYSTEM
 # =========================================================
 #
-# ✅ FIXED ALL "INTERACTION FAILED"
+# ✅ FIXED INTERACTION FAILED
+# ✅ FIXED MODAL LIMIT
 # ✅ FIXED APPROVE BUTTON
 # ✅ FIXED DENY BUTTON
 # ✅ FIXED EDIT BUTTON
 # ✅ FIXED SUBMIT BUTTON
-# ✅ FIXED PERSISTENT VIEWS
-# ✅ FIXED /pirep-stats
-# ✅ FIXED BUTTONS AFTER RESTART
-# ✅ AUTO RANK SYSTEM
+# ✅ FIXED STATS COMMAND
+# ✅ PERSISTENT BUTTONS
 # ✅ AUTO ROLE SYSTEM
-# ✅ RANK-UP LOG CHANNEL
-# ✅ ALL EMBEDS RED
+# ✅ AUTO RANK SYSTEM
+# ✅ RANKUP LOG CHANNEL
 # ✅ JSON DATABASE
+# ✅ ALL EMBEDS RED
 #
-# FILE NAME:
-# pirep.py
+# FILE NAME: pirep.py
 #
 # =========================================================
 
@@ -61,7 +60,7 @@ RANK_ROLES = {
 PIREP_FILE = "pireps.json"
 
 # =========================================================
-# 📁 JSON
+# 📁 JSON SYSTEM
 # =========================================================
 
 def load_json(path, default):
@@ -179,19 +178,19 @@ class EditPirepModal(discord.ui.Modal, title="Edit PIREP"):
         )
 
 # =========================================================
-# ✅ BUTTONS
+# ✅ BUTTON VIEW
 # =========================================================
 
 class PirepButtons(discord.ui.View):
 
-    def __init__(self, pirep_id: int = 0, pilot_id: int = 0):
+    def __init__(self, pirep_id=0, pilot_id=0):
         super().__init__(timeout=None)
 
         self.pirep_id = pirep_id
         self.pilot_id = pilot_id
 
     # =====================================================
-    # ✅ APPROVE
+    # APPROVE
     # =====================================================
 
     @discord.ui.button(
@@ -343,7 +342,7 @@ Keep flying with SGVA ✈️
         )
 
     # =====================================================
-    # ❌ DENY
+    # DENY
     # =====================================================
 
     @discord.ui.button(
@@ -398,7 +397,7 @@ Keep flying with SGVA ✈️
         )
 
     # =====================================================
-    # ✏️ EDIT
+    # EDIT
     # =====================================================
 
     @discord.ui.button(
@@ -421,30 +420,32 @@ Keep flying with SGVA ✈️
         )
 
 # =========================================================
-# 📝 MODAL
+# 📝 PIREP MODAL
 # =========================================================
 
 class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
 
-    flight_number = discord.ui.TextInput(label="Flight Number")
+    flight_number = discord.ui.TextInput(
+        label="Flight Number"
+    )
 
     route = discord.ui.TextInput(
         label="From - To",
         placeholder="VABB - OMDB"
     )
 
-    aircraft = discord.ui.TextInput(label="Aircraft")
+    aircraft = discord.ui.TextInput(
+        label="Aircraft"
+    )
 
     flight_time = discord.ui.TextInput(
         label="Flight Time",
         placeholder="2h 15m"
     )
 
-    operator = discord.ui.TextInput(label="Operator")
-
-    multiplier = discord.ui.TextInput(
-        label="Multiplier",
-        placeholder="1.0x"
+    operator = discord.ui.TextInput(
+        label="Operator | Multiplier",
+        placeholder="SGVA | 1.0x"
     )
 
     comments = discord.ui.TextInput(
@@ -456,6 +457,10 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
     async def on_submit(self, interaction: discord.Interaction):
 
         await interaction.response.defer(ephemeral=True)
+
+        # =================================================
+        # ROUTE
+        # =================================================
 
         try:
 
@@ -471,6 +476,26 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
                 ephemeral=True
             )
 
+        # =================================================
+        # OPERATOR
+        # =================================================
+
+        try:
+
+            operator, multiplier = [
+                x.strip()
+                for x in self.operator.value.split("|")
+            ]
+
+        except:
+
+            operator = self.operator.value
+            multiplier = "1.0x"
+
+        # =================================================
+        # DATABASE
+        # =================================================
+
         pireps = load_json(PIREP_FILE, [])
 
         pirep_id = len(pireps) + 1
@@ -483,8 +508,8 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
             "arrival": arr,
             "aircraft": self.aircraft.value,
             "flight_time": self.flight_time.value,
-            "operator": self.operator.value,
-            "multiplier": self.multiplier.value,
+            "operator": operator,
+            "multiplier": multiplier,
             "comments": self.comments.value,
             "status": "Pending"
         }
@@ -492,6 +517,10 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
         pireps.append(data)
 
         save_json(PIREP_FILE, pireps)
+
+        # =================================================
+        # EMBED
+        # =================================================
 
         embed = discord.Embed(
             title=f"✈️ PIREP #{pirep_id}",
@@ -524,13 +553,13 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
 
         embed.add_field(
             name="Operator",
-            value=self.operator.value,
+            value=operator,
             inline=False
         )
 
         embed.add_field(
             name="Multiplier",
-            value=self.multiplier.value,
+            value=multiplier,
             inline=False
         )
 
@@ -556,14 +585,7 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
             PIREP_LOG_CHANNEL_ID
         )
 
-        if not log_channel:
-
-            return await interaction.followup.send(
-                "❌ PIREP log channel not found.",
-                ephemeral=True
-            )
-
-        msg = await log_channel.send(
+        await log_channel.send(
             embed=embed,
             view=PirepButtons(
                 pirep_id,
@@ -607,15 +629,10 @@ class Pirep(commands.Cog):
 
         self.bot = bot
 
-        # =================================================
-        # PERSISTENT VIEWS
-        # =================================================
-
         self.bot.add_view(PirepPanel())
-        self.bot.add_view(PirepButtons())
 
     # =====================================================
-    # PANEL
+    # PANEL COMMAND
     # =====================================================
 
     @app_commands.command(
@@ -640,7 +657,7 @@ class Pirep(commands.Cog):
             description=(
                 "Welcome to the PIREP submission center! Please submit your completed flights here for review and logging.\n\n"
 
-                "📌 Make sure to include accurate flight details, including:\n\n"
+                "📌 Make sure to include accurate flight details:\n\n"
 
                 "• Flight Number\n"
                 "• Departure & Arrival Airports\n"
@@ -648,8 +665,8 @@ class Pirep(commands.Cog):
                 "• Flight Time\n"
                 "• Route Information\n\n"
 
-                "📊 Our staff team will review your PIREP as soon as possible.\n"
-                "Once approved, your statistics and hours will update automatically.\n\n"
+                "📊 Staff will review your PIREP soon.\n"
+                "Approved PIREPs update your statistics automatically.\n\n"
 
                 "Thank you for flying with SGVA ✈️"
             ),
