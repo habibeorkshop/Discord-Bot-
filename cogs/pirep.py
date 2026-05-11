@@ -50,12 +50,12 @@ RANKUP_CHANNEL_ID = 1501768831964811345
 
 RANK_ROLES = {
     0: 1500899695994601472,
-    5: 1500900295637602495,
-    15: 1500900431180599316,
-    35: 1500900552438186236,
-    60: 1500900613821694014,
-    100: 1500900801176928467,
-    200: 1500900874782769333,
+    25: 1500900295637602495,
+    100: 1500900431180599316,
+    200: 1500900552438186236,
+    400: 1500900613821694014,
+    800: 1500900801176928467,
+    2000: 1500900874782769333,
 }
 
 # =========================================================
@@ -64,12 +64,12 @@ RANK_ROLES = {
 
 RANKS = [
     (0, "Cadet"),
-    (5, "Junior First Officer"),
-    (15, "Senior First Officer"),
-    (35, "Captain"),
-    (60, "Senior Captain"),
-    (100, "Chief Pilot"),
-    (200, "Elite Pilot")
+    (25, "Junior First Officer"),
+    (100, "Senior First Officer"),
+    (200, "Captain"),
+    (400, "Senior Captain"),
+    (800, "Chief Pilot"),
+    (2000, "Elite Pilot")
 ]
 
 # =========================================================
@@ -103,13 +103,19 @@ def save_json(path, data):
 
 def parse_flight_time(time_str):
 
-    time_str = time_str.lower()
+    if not time_str:
+        return 0
+
+    time_str = str(time_str).lower().strip()
 
     hours = 0
     minutes = 0
 
-    h_match = re.search(r"(\d+)h", time_str)
-    m_match = re.search(r"(\d+)m", time_str)
+    # Match hours
+    h_match = re.search(r"(\d+)\s*h", time_str)
+
+    # Match minutes
+    m_match = re.search(r"(\d+)\s*m", time_str)
 
     if h_match:
         hours = int(h_match.group(1))
@@ -117,13 +123,20 @@ def parse_flight_time(time_str):
     if m_match:
         minutes = int(m_match.group(1))
 
+    # Support formats like:
+    # 2:30
+    # 01:45
+
+    if ":" in time_str:
+
+        try:
+            split_time = time_str.split(":")
+            hours = int(split_time[0])
+            minutes = int(split_time[1])
+        except:
+            pass
+
     return (hours * 60) + minutes
-
-def flight_hours_to_decimal(time_str):
-
-    total_minutes = parse_flight_time(time_str)
-
-    return round(total_minutes / 60, 1)
 
 # =========================================================
 # 🏅 GET RANK
