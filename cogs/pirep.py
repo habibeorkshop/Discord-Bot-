@@ -791,11 +791,10 @@ class PirepPanel(discord.ui.View):
 class Pirep(commands.Cog):
 
     def __init__(self, bot):
+
         self.bot = bot
 
-        # Persistent Views
         self.bot.add_view(PirepPanel())
-        self.bot.add_view(PirepButtons(0, 0))
 
     # =====================================================
     # /PIREP-STATS
