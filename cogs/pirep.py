@@ -1104,12 +1104,26 @@ class Pirep(commands.Cog):
             )
 
         embed = discord.Embed(
-            title="✈️ SGVA PIREP Centre",
-            description=(
-                "Submit your completed flights here."
-            ),
-            color=discord.Color.red()
-        )
+    title="✈️ SGVA PIREP Centre",
+    description=(
+        "Welcome to the PIREP submission center! "
+        "Please submit your completed flights here for review and logging.\n\n"
+
+        "📌 Make sure to include accurate flight details:\n\n"
+
+        "• Flight Number\n"
+        "• Departure & Arrival Airports\n"
+        "• Aircraft Used\n"
+        "• Flight Time\n"
+        "• Route Information\n\n"
+
+        "📊 Staff will review your PIREP soon.\n"
+        "Approved PIREPs update your statistics automatically.\n\n"
+
+        "Thank you for flying with SGVA ✈️"
+    ),
+    color=discord.Color.red()
+)
 
         await channel.send(
             embed=embed,
