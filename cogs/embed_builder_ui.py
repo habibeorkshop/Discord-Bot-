@@ -32,11 +32,6 @@ class EmbedModal(discord.ui.Modal, title="Edit Embed"):
         required=False
     )
 
-    footer_input = discord.ui.TextInput(
-        label="Footer",
-        required=False
-    )
-
     def __init__(self, view):
         super().__init__()
         self.view_obj = view
