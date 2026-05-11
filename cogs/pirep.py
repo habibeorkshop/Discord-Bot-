@@ -420,13 +420,14 @@ Keep flying with SGVA ✈️
         )
 
 # =========================================================
-# 📝 PIREP MODAL
+# 📝 FIXED MODAL
 # =========================================================
 
 class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
 
     flight_number = discord.ui.TextInput(
-        label="Flight Number"
+        label="Flight Number",
+        placeholder="SGVA101"
     )
 
     route = discord.ui.TextInput(
@@ -435,7 +436,8 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
     )
 
     aircraft = discord.ui.TextInput(
-        label="Aircraft"
+        label="Aircraft",
+        placeholder="B737 MAX 8"
     )
 
     flight_time = discord.ui.TextInput(
@@ -443,24 +445,16 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
         placeholder="2h 15m"
     )
 
-    operator = discord.ui.TextInput(
-        label="Operator | Multiplier",
-        placeholder="SGVA | 1.0x"
-    )
-
-    comments = discord.ui.TextInput(
-        label="Comments (Optional)",
+    extra = discord.ui.TextInput(
+        label="Operator | Multiplier | Comments",
         style=discord.TextStyle.paragraph,
+        placeholder="SpiceJet | 1.0x | Smooth Landing",
         required=False
     )
 
     async def on_submit(self, interaction: discord.Interaction):
 
         await interaction.response.defer(ephemeral=True)
-
-        # =================================================
-        # ROUTE
-        # =================================================
 
         try:
 
@@ -470,12 +464,140 @@ class PirepModal(discord.ui.Modal, title="SGVA PIREP Centre"):
             ]
 
         except:
-
             return await interaction.followup.send(
-                "❌ Invalid route format.\nExample: VABB - OMDB",
+                "❌ Invalid route format. Use: VABB - OMDB",
                 ephemeral=True
             )
 
+        # =====================================================
+        # EXTRA PARSER
+        # =====================================================
+
+        operator = "Unknown"
+        multiplier = "1.0x"
+        comments = "None"
+
+        try:
+
+            parts = [x.strip() for x in self.extra.value.split("|")]
+
+            if len(parts) >= 1:
+                operator = parts[0]
+
+            if len(parts) >= 2:
+                multiplier = parts[1]
+
+            if len(parts) >= 3:
+                comments = parts[2]
+
+        except:
+            pass
+
+        pireps = load_json(PIREP_FILE, [])
+
+        pirep_id = len(pireps) + 1
+
+        data = {
+            "id": pirep_id,
+            "user_id": interaction.user.id,
+            "flight_number": self.flight_number.value,
+            "departure": dep,
+            "arrival": arr,
+            "aircraft": self.aircraft.value,
+            "flight_time": self.flight_time.value,
+            "operator": operator,
+            "multiplier": multiplier,
+            "comments": comments,
+            "status": "Pending"
+        }
+
+        pireps.append(data)
+
+        save_json(PIREP_FILE, pireps)
+
+        # =====================================================
+        # EMBED
+        # =====================================================
+
+        embed = discord.Embed(
+            title=f"✈️ PIREP #{pirep_id}",
+            color=discord.Color.red()
+        )
+
+        embed.add_field(
+            name="Flight Number",
+            value=self.flight_number.value,
+            inline=True
+        )
+
+        embed.add_field(
+            name="Route",
+            value=f"{dep} → {arr}",
+            inline=True
+        )
+
+        embed.add_field(
+            name="Aircraft",
+            value=self.aircraft.value,
+            inline=True
+        )
+
+        embed.add_field(
+            name="Flight Time",
+            value=self.flight_time.value,
+            inline=True
+        )
+
+        embed.add_field(
+            name="Operator",
+            value=operator,
+            inline=True
+        )
+
+        embed.add_field(
+            name="Multiplier",
+            value=multiplier,
+            inline=True
+        )
+
+        embed.add_field(
+            name="Comments",
+            value=comments,
+            inline=False
+        )
+
+        embed.add_field(
+            name="Pilot",
+            value=interaction.user.mention,
+            inline=False
+        )
+
+        embed.add_field(
+            name="Status",
+            value="🟡 Pending Review",
+            inline=False
+        )
+
+        # =====================================================
+        # SEND TO LOG CHANNEL
+        # =====================================================
+
+        log_channel = interaction.guild.get_channel(
+            PIREP_LOG_CHANNEL_ID
+        )
+
+        msg = await log_channel.send(
+            embed=embed,
+            view=PirepButtons(
+                pirep_id,
+                interaction.user.id
+            )
+        )
+
+        await interaction.followup.send(
+            "✅ PIREP submitted successfully.",
+            ephemeral=True
+        )
         # =================================================
         # OPERATOR
         # =================================================
