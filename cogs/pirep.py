@@ -699,6 +699,388 @@ class Pirep(commands.Cog):
         self.bot.add_view(PirepPanel())
 
     # =====================================================
+    # /PIREP-STATS
+    # =====================================================
+
+    @app_commands.command(
+        name="pirep-stats",
+        description="View your advanced pilot statistics"
+    )
+    async def pirep_stats(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        pireps = load_json(PIREP_FILE, [])
+
+        user_pireps = [
+            p for p in pireps
+            if p["user_id"] == interaction.user.id
+        ]
+
+        approved = [
+            p for p in user_pireps
+            if p["status"] == "Approved"
+        ]
+
+        pending = [
+            p for p in user_pireps
+            if p["status"] == "Pending"
+        ]
+
+        denied = [
+            p for p in user_pireps
+            if p["status"] == "Denied"
+        ]
+
+        total_minutes = sum(
+            parse_flight_time(p["flight_time"])
+            for p in approved
+        )
+
+        total_hours = round(total_minutes / 60, 1)
+
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+
+        current_rank, next_rank = get_rank(total_hours)
+
+        # Favorite Aircraft
+        aircraft_counter = Counter(
+            p["aircraft"] for p in approved
+        )
+
+        favorite_aircraft = (
+            aircraft_counter.most_common(1)[0][0]
+            if aircraft_counter else "N/A"
+        )
+
+        # Favorite Route
+        route_counter = Counter(
+            f"{p['departure']} → {p['arrival']}"
+            for p in approved
+        )
+
+        favorite_route = (
+            route_counter.most_common(1)[0][0]
+            if route_counter else "N/A"
+        )
+
+        # Operators
+        operators = set(
+            p["operator"]
+            for p in approved
+        )
+
+        # Average Flight Time
+        avg_minutes = (
+            total_minutes // len(approved)
+            if approved else 0
+        )
+
+        avg_h = avg_minutes // 60
+        avg_m = avg_minutes % 60
+
+        embed = discord.Embed(
+            title="📊 Advanced Pilot Statistics",
+            color=discord.Color.red()
+        )
+
+        embed.add_field(
+            name="✈️ Total Flights",
+            value=str(len(approved)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="🕒 Total Hours",
+            value=f"{hours}h {minutes}m",
+            inline=True
+        )
+
+        embed.add_field(
+            name="🏅 Current Rank",
+            value=current_rank,
+            inline=True
+        )
+
+        embed.add_field(
+            name="🟢 Approved",
+            value=str(len(approved)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="🟡 Pending",
+            value=str(len(pending)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="🔴 Denied",
+            value=str(len(denied)),
+            inline=True
+        )
+
+        if next_rank:
+
+            req, next_name = next_rank
+
+            remaining = round(req - total_hours, 1)
+
+            embed.add_field(
+                name="📈 Next Rank",
+                value=next_name,
+                inline=True
+            )
+
+            embed.add_field(
+                name="⏳ Hours Remaining",
+                value=f"{remaining} hrs",
+                inline=True
+            )
+
+        embed.add_field(
+            name="🛩️ Favorite Aircraft",
+            value=favorite_aircraft,
+            inline=True
+        )
+
+        embed.add_field(
+            name="🌍 Favorite Route",
+            value=favorite_route,
+            inline=True
+        )
+
+        embed.add_field(
+            name="🏢 Operators Used",
+            value=str(len(operators)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="📊 Average Flight Time",
+            value=f"{avg_h}h {avg_m}m",
+            inline=True
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
+    # =====================================================
+    # /PIREP-LIST
+    # =====================================================
+
+    @app_commands.command(
+        name="pirep-list",
+        description="View your recent PIREPs"
+    )
+    async def pirep_list(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        pireps = load_json(PIREP_FILE, [])
+
+        user_pireps = [
+            p for p in pireps
+            if p["user_id"] == interaction.user.id
+        ][-5:]
+
+        if not user_pireps:
+            return await interaction.response.send_message(
+                "❌ No PIREPs found.",
+                ephemeral=True
+            )
+
+        embed = discord.Embed(
+            title="📋 Recent PIREPs",
+            color=discord.Color.red()
+        )
+
+        for p in reversed(user_pireps):
+
+            embed.add_field(
+                name=f"✈️ {p['flight_number']}",
+                value=(
+                    f"📍 {p['departure']} → {p['arrival']}\n"
+                    f"🛩️ {p['aircraft']}\n"
+                    f"🕒 {p['flight_time']}\n"
+                    f"📊 {p['status']}"
+                ),
+                inline=False
+            )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
+    # =====================================================
+    # /LEADERBOARD
+    # =====================================================
+
+    @app_commands.command(
+        name="leaderboard",
+        description="View SGVA leaderboard"
+    )
+    async def leaderboard(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        pireps = load_json(PIREP_FILE, [])
+
+        leaderboard_data = {}
+
+        for p in pireps:
+
+            if p["status"] != "Approved":
+                continue
+
+            uid = p["user_id"]
+
+            if uid not in leaderboard_data:
+                leaderboard_data[uid] = {
+                    "flights": 0,
+                    "minutes": 0
+                }
+
+            leaderboard_data[uid]["flights"] += 1
+            leaderboard_data[uid]["minutes"] += parse_flight_time(
+                p["flight_time"]
+            )
+
+        sorted_users = sorted(
+            leaderboard_data.items(),
+            key=lambda x: x[1]["minutes"],
+            reverse=True
+        )[:10]
+
+        embed = discord.Embed(
+            title="🏆 SGVA Leaderboard",
+            color=discord.Color.red()
+        )
+
+        position = 1
+
+        for uid, data in sorted_users:
+
+            member = interaction.guild.get_member(uid)
+
+            name = member.name if member else "Unknown"
+
+            hours = round(data["minutes"] / 60, 1)
+
+            embed.add_field(
+                name=f"#{position} • {name}",
+                value=(
+                    f"✈️ Flights: {data['flights']}\n"
+                    f"🕒 Hours: {hours}"
+                ),
+                inline=False
+            )
+
+            position += 1
+
+        await interaction.response.send_message(
+            embed=embed
+        )
+
+    # =====================================================
+    # /LOGBOOK
+    # =====================================================
+
+    @app_commands.command(
+        name="logbook",
+        description="View your pilot logbook"
+    )
+    async def logbook(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        pireps = load_json(PIREP_FILE, [])
+
+        approved = [
+            p for p in pireps
+            if p["user_id"] == interaction.user.id
+            and p["status"] == "Approved"
+        ]
+
+        if not approved:
+            return await interaction.response.send_message(
+                "❌ No approved PIREPs.",
+                ephemeral=True
+            )
+
+        routes = set(
+            f"{p['departure']} → {p['arrival']}"
+            for p in approved
+        )
+
+        aircraft = set(
+            p["aircraft"]
+            for p in approved
+        )
+
+        longest = max(
+            approved,
+            key=lambda x: parse_flight_time(x["flight_time"])
+        )
+
+        last_flight = approved[-1]
+        first_flight = approved[0]
+
+        embed = discord.Embed(
+            title="📘 Pilot Logbook",
+            color=discord.Color.red()
+        )
+
+        embed.add_field(
+            name="🌍 Total Routes",
+            value=str(len(routes)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="🛩️ Aircraft Flown",
+            value=str(len(aircraft)),
+            inline=True
+        )
+
+        embed.add_field(
+            name="🕒 Longest Flight",
+            value=(
+                f"{longest['flight_number']}\n"
+                f"{longest['flight_time']}"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="📍 Last Flight",
+            value=(
+                f"{last_flight['departure']} → "
+                f"{last_flight['arrival']}"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="📅 First Flight",
+            value=first_flight["created_at"],
+            inline=False
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
+    # =====================================================
     # PANEL
     # =====================================================
 
